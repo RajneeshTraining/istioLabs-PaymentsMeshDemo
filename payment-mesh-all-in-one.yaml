@@ -1,0 +1,480 @@
+# =============================================================================
+# payment-mesh-all-in-one.yaml
+#
+# Single-file deployment of the payment-mesh-demo application (Phases
+# 1-3): namespace, ServiceAccounts, Deployments, and Services for all
+# 6 services. NO Istio-specific resources are included here on purpose
+# - this brings up the plain Kubernetes baseline you build Istio work
+# on top of (Gateway, VirtualService, DestinationRule,
+# PeerAuthentication, AuthorizationPolicy, EnvoyFilter all come after,
+# from deploy/istio/, once Istio itself is installed on the cluster).
+#
+# Works on ANY Kubernetes cluster (kind, minikube, Docker Desktop,
+# Killercoda, or a real cloud cluster) since all 6 images are already
+# pushed to Docker Hub - no local image loading/building required.
+#
+# USAGE
+# -----
+# 1. Replace the placeholder below with your actual Docker Hub
+#    username (one sed command handles every image reference at once):
+#
+#      sed -i 's/rajneeshgupta/rajneeshgupta/g' payment-mesh-all-in-one.yaml
+#
+#    (macOS/BSD sed users: use `sed -i '' 's/.../.../g' ...` instead -
+#    the empty '' after -i is required on macOS.)
+#
+# 2. Apply it:
+#
+#      kubectl apply -f payment-mesh-all-in-one.yaml
+#
+# 3. Wait for every pod to become ready:
+#
+#      kubectl rollout status deployment -n payment-mesh --timeout=120s
+#      kubectl get pods -n payment-mesh
+#
+#    Pods will show 1/1 (not 2/2) until Istio is installed AND these
+#    Deployments are restarted afterward - the "istio-injection: enabled"
+#    label below only affects pods created after Istio's sidecar
+#    injector webhook actually exists on the cluster.
+#
+# 4. From here, follow the main README's Phase 4 onward to install
+#    Istio, enable sidecar injection, and apply everything under
+#    deploy/istio/.
+#
+# TEARDOWN
+# --------
+#   kubectl delete -f payment-mesh-all-in-one.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payment-mesh
+  labels:
+    app.kubernetes.io/part-of: payment-mesh-demo
+    # Phase 4: this label tells Istio's sidecar injector to automatically
+    # add an Envoy proxy container to every pod created in this
+    # namespace. It only affects NEW pods - existing pods must be
+    # restarted (see the README's Phase 4 section) to actually get a
+    # sidecar injected.
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: order-service
+  namespace: payment-mesh
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: payment-mesh
+  labels:
+    app: order-service
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        version: v1
+    spec:
+      serviceAccountName: order-service
+      containers:
+        - name: order-service
+          image: rajneeshgupta/order-service
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: payment-mesh
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fraud-detection-service
+  namespace: payment-mesh
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-service
+  namespace: payment-mesh
+  labels:
+    app: fraud-detection-service
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fraud-detection-service
+  template:
+    metadata:
+      labels:
+        app: fraud-detection-service
+        version: v1
+    spec:
+      serviceAccountName: fraud-detection-service
+      containers:
+        - name: fraud-detection-service
+          image: rajneeshgupta/fraud-detection-service
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-detection-service
+  namespace: payment-mesh
+spec:
+  selector:
+    app: fraud-detection-service
+  ports:
+    - port: 8085
+      targetPort: 8085
+      name: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment-service
+  namespace: payment-mesh
+  # Shared across v1, v2, AND v3 - all three versions are the same
+  # logical service, so they get the same identity. AuthorizationPolicy
+  # rules in Phase 7 can therefore only say "payment-service may call
+  # X", not "only v2/v3 may call X" - a limitation worth knowing about,
+  # not a bug. See the README's Phase 7 section for why.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-v1
+  namespace: payment-mesh
+  labels:
+    app: payment-service
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        version: v1
+    spec:
+      serviceAccountName: payment-service
+      containers:
+        - name: payment-service
+          image: rajneeshgupta/payment-service-v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # All three payment-service versions are told to listen on the
+            # SAME port (8080) here, even though locally/in Docker Compose
+            # each uses a different port (8082/8083/8084). This is required
+            # so the single "payment-service" Kubernetes Service (see
+            # payment-service.yaml) can target all versions consistently.
+            # Spring Boot maps this env var to the "server.port" property
+            # automatically - no code change needed.
+            - name: SERVER_PORT
+              value: "8080"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-v2
+  namespace: payment-mesh
+  labels:
+    app: payment-service
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        version: v2
+    spec:
+      # Shares the "payment-service" ServiceAccount defined in
+      # payment-service-v1.yaml - see the comment there.
+      serviceAccountName: payment-service
+      containers:
+        - name: payment-service
+          image: rajneeshgupta/payment-service-v2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: FRAUD_SERVICE_URL
+              value: "http://fraud-detection-service:8085"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-v3
+  namespace: payment-mesh
+  labels:
+    app: payment-service
+    version: v3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+      version: v3
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        version: v3
+    spec:
+      # Shares the "payment-service" ServiceAccount defined in
+      # payment-service-v1.yaml - see the comment there.
+      serviceAccountName: payment-service
+      containers:
+        - name: payment-service
+          image: rajneeshgupta/payment-service-v3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: FRAUD_SERVICE_URL
+              value: "http://fraud-detection-service:8085"
+            # Chaos is OFF by default, same as local/Docker Compose. Flip
+            # CHAOS_ENABLED to "true" here (and re-apply) in Phase 6 when
+            # you're ready to demo Istio timeouts/retries/circuit breaking.
+            - name: CHAOS_ENABLED
+              value: "false"
+            - name: CHAOS_DELAY_MS
+              value: "3000"
+            - name: CHAOS_FAILURE_RATE
+              value: "0.3"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: payment-mesh
+spec:
+  # Selects on "app: payment-service" only - NOT on "version" - so this
+  # one Service load-balances across all three Deployments (v1, v2, v3)
+  # simultaneously. Plain Kubernetes has no idea these are "different
+  # versions"; it just round-robins across every matching pod.
+  #
+  # This is the exact limitation Istio solves in Phase 5: a
+  # VirtualService + DestinationRule let you control the traffic split
+  # (or route by header, force 100% to one version, etc.) instead of
+  # this blind round-robin.
+  selector:
+    app: payment-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway
+  namespace: payment-mesh
+  # Phase 7: a dedicated identity for this Deployment. Istio issues
+  # each pod a certificate based on its ServiceAccount, and
+  # AuthorizationPolicy rules in Phase 7 use that identity to decide
+  # who's allowed to call whom. Without a distinct ServiceAccount per
+  # service, every pod would share the namespace's "default" identity
+  # and per-service authorization rules would be meaningless.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: payment-mesh
+  labels:
+    app: gateway
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+        version: v1
+    spec:
+      serviceAccountName: gateway
+      containers:
+        - name: gateway
+          image: rajneeshgupta/gateway
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:8081"
+            # Points at the single "payment-service" Service, which
+            # round-robins across v1/v2/v3 pods. Nothing here decides
+            # which version answers - see payment-service.yaml.
+            - name: PAYMENT_SERVICE_URL
+              value: "http://payment-service:8080"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: payment-mesh
+spec:
+  # ClusterIP for now - use `kubectl port-forward` to reach it from your
+  # machine. Phase 4 replaces external access with an Istio Ingress
+  # Gateway instead.
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
