@@ -1,4 +1,4 @@
-# Payment Mesh Demo — Student Quick Start
+# Payment Mesh Demo — Learner's Quick Start
 
 A small microservices checkout app, purpose-built for practicing
 **Istio** service mesh concepts (traffic splitting, resilience,
