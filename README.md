@@ -58,9 +58,9 @@ apply your own `VirtualService`/`DestinationRule` to control it.
 ## 4. Try it
 
 ```bash
-curl -X POST http://localhost:8080/checkout \
+curl -sX POST http://localhost:8080/checkout \
   -H "Content-Type: application/json" \
-  -d '{"amount": 250.00, "currency": "USD", "cardNumber": "4111-1111-1111-1111"}' | jq . ;echo
+  -d '{"amount": 250.00, "currency": "USD", "cardNumber": "4111-1111-1111-1111"}' | jq .
 ```
 
 Sample response:
