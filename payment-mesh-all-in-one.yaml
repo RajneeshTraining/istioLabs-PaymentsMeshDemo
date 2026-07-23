@@ -18,7 +18,7 @@
 # 1. Replace the placeholder below with your actual Docker Hub
 #    username (one sed command handles every image reference at once):
 #
-#      sed -i 's/rajneeshgupta/rajneeshgupta/g' payment-mesh-all-in-one.yaml
+#      sed -i 's/REPLACE_ME_DOCKERHUB_USERNAME/<your-dockerhub-username>/g' payment-mesh-all-in-one.yaml
 #
 #    (macOS/BSD sed users: use `sed -i '' 's/.../.../g' ...` instead -
 #    the empty '' after -i is required on macOS.)
@@ -27,10 +27,22 @@
 #
 #      kubectl apply -f payment-mesh-all-in-one.yaml
 #
-# 3. Wait for every pod to become ready:
+# 3. Wait for every pod to become ready (this actually blocks until
+#    ready or timeout, unlike just running `kubectl get pods` once):
 #
-#      kubectl rollout status deployment -n payment-mesh --timeout=120s
+#      kubectl wait --for=condition=ready pod --all -n payment-mesh --timeout=180s
 #      kubectl get pods -n payment-mesh
+#
+#    If that times out or is taking a long time, it's almost always
+#    the first-time image pull (6 images, ~200-300MB each), not the
+#    app itself - check with:
+#
+#      kubectl get events -n payment-mesh --sort-by=.lastTimestamp | tail -20
+#      kubectl describe pod <a-slow-pod-name> -n payment-mesh
+#
+#    Look for "Pulling image" and how long it took. Re-running the
+#    wait command afterward is fast, since images are then cached
+#    on the node.
 #
 #    Pods will show 1/1 (not 2/2) until Istio is installed AND these
 #    Deployments are restarted afterward - the "istio-injection: enabled"
@@ -40,6 +52,21 @@
 # 4. From here, follow the main README's Phase 4 onward to install
 #    Istio, enable sidecar injection, and apply everything under
 #    deploy/istio/.
+#
+# TESTING POD-TO-POD COMMUNICATION
+# ---------------------------------
+# This file also includes a small standalone "debug-curl" pod for
+# exactly this purpose. Use it like this:
+#
+#   kubectl exec -n payment-mesh debug-curl -- \
+#     curl -s -o /dev/null -w "%{http_code}\n" http://order-service:8081/orders/anything
+#
+# Swap the URL to hit any other service directly (order-service:8081,
+# payment-service:8080, fraud-detection-service:8085, gateway:8080) -
+# useful for bypassing gateway entirely, or later testing
+# AuthorizationPolicy/mTLS behavior once Istio is on top, since this
+# pod deliberately runs under the "default" ServiceAccount (no special
+# identity granted).
 #
 # TEARDOWN
 # --------
@@ -87,7 +114,7 @@ spec:
       serviceAccountName: order-service
       containers:
         - name: order-service
-          image: rajneeshgupta/order-service
+          image: REPLACE_ME_DOCKERHUB_USERNAME/order-service:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081
@@ -95,20 +122,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8081
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8081
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: v1
@@ -152,7 +179,7 @@ spec:
       serviceAccountName: fraud-detection-service
       containers:
         - name: fraud-detection-service
-          image: rajneeshgupta/fraud-detection-service
+          image: REPLACE_ME_DOCKERHUB_USERNAME/fraud-detection-service:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8085
@@ -160,20 +187,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8085
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8085
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: v1
@@ -223,7 +250,7 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: rajneeshgupta/payment-service-v1
+          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v1:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -241,20 +268,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: apps/v1
@@ -282,7 +309,7 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: rajneeshgupta/payment-service-v2
+          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v2:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -295,20 +322,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: apps/v1
@@ -336,7 +363,7 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: rajneeshgupta/payment-service-v3
+          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v3:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -358,20 +385,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: v1
@@ -430,7 +457,7 @@ spec:
       serviceAccountName: gateway
       containers:
         - name: gateway
-          image: rajneeshgupta/gateway
+          image: REPLACE_ME_DOCKERHUB_USERNAME/gateway:0.1.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -446,20 +473,20 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8080
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 15
+            periodSeconds: 10
           resources:
             requests:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
 ---
 apiVersion: v1
@@ -478,3 +505,34 @@ spec:
     - port: 8080
       targetPort: 8080
       name: http
+---
+# Standalone utility pod - not part of the application, just a curl
+# client sitting inside the payment-mesh namespace for testing
+# pod-to-pod communication (e.g. calling order-service or
+# payment-service directly, bypassing gateway, or later testing mTLS/
+# AuthorizationPolicy behavior once you add Istio on top).
+#
+# Runs under the "default" ServiceAccount (no special identity granted)
+# and simply sleeps - use `kubectl exec` to run commands inside it.
+# restartPolicy: Never means it won't restart itself if it exits or is
+# deleted; re-apply this file (or just this document) to recreate it.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-curl
+  namespace: payment-mesh
+  labels:
+    app: debug-curl
+spec:
+  restartPolicy: Never
+  containers:
+    - name: debug-curl
+      image: curlimages/curl:latest
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "32Mi"
+        limits:
+          cpu: "100m"
+          memory: "64Mi"
