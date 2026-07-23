@@ -18,7 +18,7 @@
 # 1. Replace the placeholder below with your actual Docker Hub
 #    username (one sed command handles every image reference at once):
 #
-#      sed -i 's/REPLACE_ME_DOCKERHUB_USERNAME/<your-dockerhub-username>/g' payment-mesh-all-in-one.yaml
+#      sed -i 's/rajneeshgupta/<your-dockerhub-username>/g' payment-mesh-all-in-one.yaml
 #
 #    (macOS/BSD sed users: use `sed -i '' 's/.../.../g' ...` instead -
 #    the empty '' after -i is required on macOS.)
@@ -55,10 +55,10 @@
 #
 # TESTING POD-TO-POD COMMUNICATION
 # ---------------------------------
-# This file also includes a small standalone "debug-curl" pod for
+# This file also includes a small standalone "testing-pod" pod for
 # exactly this purpose. Use it like this:
 #
-#   kubectl exec -n payment-mesh debug-curl -- \
+#   kubectl exec -n payment-mesh testing-pod -- \
 #     curl -s -o /dev/null -w "%{http_code}\n" http://order-service:8081/orders/anything
 #
 # Swap the URL to hit any other service directly (order-service:8081,
@@ -114,8 +114,8 @@ spec:
       serviceAccountName: order-service
       containers:
         - name: order-service
-          image: REPLACE_ME_DOCKERHUB_USERNAME/order-service:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/order-service
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
           readinessProbe:
@@ -179,8 +179,8 @@ spec:
       serviceAccountName: fraud-detection-service
       containers:
         - name: fraud-detection-service
-          image: REPLACE_ME_DOCKERHUB_USERNAME/fraud-detection-service:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/fraud-detection-service
+          imagePullPolicy: Always
           ports:
             - containerPort: 8085
           readinessProbe:
@@ -250,8 +250,8 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v1:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/payment-service-v1
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -309,8 +309,8 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v2:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/payment-service-v2
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -363,8 +363,8 @@ spec:
       serviceAccountName: payment-service
       containers:
         - name: payment-service
-          image: REPLACE_ME_DOCKERHUB_USERNAME/payment-service-v3:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/payment-service-v3
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -457,8 +457,8 @@ spec:
       serviceAccountName: gateway
       containers:
         - name: gateway
-          image: REPLACE_ME_DOCKERHUB_USERNAME/gateway:0.1.0
-          imagePullPolicy: IfNotPresent
+          image: rajneeshgupta/gateway
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -519,10 +519,10 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: debug-curl
+  name: testing-pod
   namespace: payment-mesh
   labels:
-    app: debug-curl
+    app: testing-pod
 spec:
   restartPolicy: Never
   containers:
