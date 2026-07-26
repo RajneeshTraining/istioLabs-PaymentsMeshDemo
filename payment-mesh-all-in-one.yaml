@@ -113,30 +113,11 @@ spec:
     spec:
       serviceAccountName: order-service
       containers:
-        - name: order-service
-          image: rajneeshgupta/order-service
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8081
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8081
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+      - name: order-service
+        image: rajneeshgupta/order-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
 ---
 apiVersion: v1
 kind: Service
@@ -147,9 +128,9 @@ spec:
   selector:
     app: order-service
   ports:
-    - port: 8081
-      targetPort: 8081
-      name: http
+  - port: 8081
+    targetPort: 8081
+    name: http
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -178,30 +159,11 @@ spec:
     spec:
       serviceAccountName: fraud-detection-service
       containers:
-        - name: fraud-detection-service
-          image: rajneeshgupta/fraud-detection-service
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8085
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8085
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8085
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+      - name: fraud-detection-service
+        image: rajneeshgupta/fraud-detection-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8085
 ---
 apiVersion: v1
 kind: Service
@@ -212,9 +174,9 @@ spec:
   selector:
     app: fraud-detection-service
   ports:
-    - port: 8085
-      targetPort: 8085
-      name: http
+  - port: 8085
+    targetPort: 8085
+    name: http
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -249,12 +211,12 @@ spec:
     spec:
       serviceAccountName: payment-service
       containers:
-        - name: payment-service
-          image: rajneeshgupta/payment-service-v1
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8080
-          env:
+      - name: payment-service
+        image: rajneeshgupta/payment-service-v1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
             # All three payment-service versions are told to listen on the
             # SAME port (8080) here, even though locally/in Docker Compose
             # each uses a different port (8082/8083/8084). This is required
@@ -262,27 +224,8 @@ spec:
             # payment-service.yaml) can target all versions consistently.
             # Spring Boot maps this env var to the "server.port" property
             # automatically - no code change needed.
-            - name: SERVER_PORT
-              value: "8080"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+        - name: SERVER_PORT
+          value: '8080'
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -308,35 +251,16 @@ spec:
       # payment-service-v1.yaml - see the comment there.
       serviceAccountName: payment-service
       containers:
-        - name: payment-service
-          image: rajneeshgupta/payment-service-v2
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8080
-          env:
-            - name: SERVER_PORT
-              value: "8080"
-            - name: FRAUD_SERVICE_URL
-              value: "http://fraud-detection-service:8085"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+      - name: payment-service
+        image: rajneeshgupta/payment-service-v2
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: '8080'
+        - name: FRAUD_SERVICE_URL
+          value: http://fraud-detection-service:8085
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -362,44 +286,25 @@ spec:
       # payment-service-v1.yaml - see the comment there.
       serviceAccountName: payment-service
       containers:
-        - name: payment-service
-          image: rajneeshgupta/payment-service-v3
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8080
-          env:
-            - name: SERVER_PORT
-              value: "8080"
-            - name: FRAUD_SERVICE_URL
-              value: "http://fraud-detection-service:8085"
+      - name: payment-service
+        image: rajneeshgupta/payment-service-v3
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: '8080'
+        - name: FRAUD_SERVICE_URL
+          value: http://fraud-detection-service:8085
             # Chaos is OFF by default, same as local/Docker Compose. Flip
             # CHAOS_ENABLED to "true" here (and re-apply) in Phase 6 when
             # you're ready to demo Istio timeouts/retries/circuit breaking.
-            - name: CHAOS_ENABLED
-              value: "false"
-            - name: CHAOS_DELAY_MS
-              value: "3000"
-            - name: CHAOS_FAILURE_RATE
-              value: "0.3"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+        - name: CHAOS_ENABLED
+          value: 'false'
+        - name: CHAOS_DELAY_MS
+          value: '3000'
+        - name: CHAOS_FAILURE_RATE
+          value: '0.3'
 ---
 apiVersion: v1
 kind: Service
@@ -419,9 +324,9 @@ spec:
   selector:
     app: payment-service
   ports:
-    - port: 8080
-      targetPort: 8080
-      name: http
+  - port: 8080
+    targetPort: 8080
+    name: http
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -456,38 +361,19 @@ spec:
     spec:
       serviceAccountName: gateway
       containers:
-        - name: gateway
-          image: rajneeshgupta/gateway
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8080
-          env:
-            - name: ORDER_SERVICE_URL
-              value: "http://order-service:8081"
+      - name: gateway
+        image: rajneeshgupta/gateway
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ORDER_SERVICE_URL
+          value: http://order-service:8081
             # Points at the single "payment-service" Service, which
             # round-robins across v1/v2/v3 pods. Nothing here decides
             # which version answers - see payment-service.yaml.
-            - name: PAYMENT_SERVICE_URL
-              value: "http://payment-service:8080"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "750m"
-              memory: "512Mi"
+        - name: PAYMENT_SERVICE_URL
+          value: http://payment-service:8080
 ---
 apiVersion: v1
 kind: Service
@@ -502,9 +388,9 @@ spec:
   selector:
     app: gateway
   ports:
-    - port: 8080
-      targetPort: 8080
-      name: http
+  - port: 8080
+    targetPort: 8080
+    name: http
 ---
 # Standalone utility pod - not part of the application, just a curl
 # client sitting inside the payment-mesh namespace for testing
@@ -526,13 +412,6 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    - name: debug-curl
-      image: curlimages/curl:latest
-      command: ["sleep", "infinity"]
-      resources:
-        requests:
-          cpu: "50m"
-          memory: "32Mi"
-        limits:
-          cpu: "100m"
-          memory: "64Mi"
+  - name: debug-curl
+    image: nicolaka/netshoot #curlimages/curl:latest   #nicolaka/netshoot 
+    command: [sleep, infinity]
