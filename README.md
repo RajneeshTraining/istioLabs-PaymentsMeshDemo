@@ -29,6 +29,11 @@ reach it via port-forward:
 kubectl port-forward -n payment-mesh svc/gateway 8080:8080
 ```
 
+If the services need to run on all interfaces (like 0.0.0.0) and not just localhost, then use below command -
+```bash
+kubectl port-forward --address 0.0.0.0 -n payment-mesh svc/gateway 8080:8080
+```
+
 ## 3. Services and request flow
 
 | Service | Role |
@@ -56,9 +61,9 @@ across all three at random — a good baseline to observe before you
 apply your own `VirtualService`/`DestinationRule` to control it.
 
 ## 4. Try it
-
+Below command can be run inside testing pod -
 ```bash
-curl -sX POST http://localhost:8080/checkout \
+curl -sX POST http://<hostname:port>/checkout \
   -H "Content-Type: application/json" \
   -d '{"amount": 250.00, "currency": "USD", "cardNumber": "4111-1111-1111-1111"}' | jq .
 ```
@@ -72,6 +77,18 @@ Sample response:
   "reason": "Approved without fraud check (v1 behavior)"
 }
 ```
+
+For multiple requests, use below command -
+```bash
+kubectl exec -it testing-pod -n payment-mesh -- sh -c '
+for i in $(seq 1 20); do
+  curl -s -X POST "https://<hostname:port>/checkout" \
+    -H "Content-Type: application/json" \
+    -d "{\"amount\":250.00,\"currency\":\"USD\",\"cardNumber\":\"4111-1111-1111-1111\"}" \
+  | jq .          
+done'
+```
+
 
 Run it several times and watch `servedBy` — it should cycle between
 `payment-service-v1`, `-v2`, and `-v3` with no pattern. That randomness
