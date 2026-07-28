@@ -1,0 +1,37 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: payment-service-vs
+  namespace: payment-mesh
+spec:
+  hosts:
+  - payment-service.payment-mesh.svc.cluster.local
+  http:
+  - route:
+    - destination:
+        host: payment-service.payment-mesh.svc.cluster.local
+        subset: v1
+      weight: 90
+    - destination:
+        host: payment-service.payment-mesh.svc.cluster.local
+        subset: v2
+      weight: 10
+
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: payment-service-dr
+  namespace: payment-mesh
+spec:
+  host: payment-service.payment-mesh.svc.cluster.local
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+  - name: v3
+    labels:
+      version: v3
