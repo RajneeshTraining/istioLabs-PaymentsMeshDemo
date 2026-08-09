@@ -89,6 +89,21 @@ for i in $(seq 1 20); do
 done'
 ```
 
+**If you are already inside the testing-pod**, then execute below:
+```bash
+for i in $(seq 1 20); do
+  echo "========== REQUEST $i =========="
+
+  curl -sS -X POST 'http://192.168.1.40:8080/checkout' \
+    -H 'Content-Type: application/json' \
+    -d '{"amount":250.00,"currency":"USD","cardNumber":"4111-1111-1111-1111"}' \
+  | jq .
+
+  echo
+done
+```
+
+
 
 Run it several times and watch `servedBy` — it should cycle between
 `payment-service-v1`, `-v2`, and `-v3` with no pattern. That randomness
