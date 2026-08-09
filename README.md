@@ -80,13 +80,16 @@ Sample response:
 
 For multiple requests, use below command -
 ```bash
-kubectl exec -it testing-pod -n payment-mesh -- sh -c '
+kubectl exec -n payment-mesh testing-pod -- sh -c '
 for i in $(seq 1 20); do
-  curl -s -X POST "https://<gateway-pod-ip:port>/checkout" \
+  echo "========== REQUEST $i =========="
+  curl -sS -X POST "http://192.168.1.40:8080/checkout" \
     -H "Content-Type: application/json" \
-    -d "{\"amount\":250.00,\"currency\":\"USD\",\"cardNumber\":\"4111-1111-1111-1111\"}" \
-  | jq .          
-done'
+    -d '\''{"amount":250.00,"currency":"USD","cardNumber":"4111-1111-1111-1111"}'\'' \
+    | jq .
+  echo
+done
+'
 ```
 
 **If you are already inside the testing-pod**, then execute below:
