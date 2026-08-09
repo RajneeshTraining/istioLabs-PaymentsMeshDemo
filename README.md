@@ -63,7 +63,7 @@ apply your own `VirtualService`/`DestinationRule` to control it.
 ## 4. Try it
 Below command can be run inside testing pod -
 ```bash
-curl -sX POST http://<hostname:port>/checkout \
+curl -sX POST http://<gateway-pod-ip:port>/checkout \
   -H "Content-Type: application/json" \
   -d '{"amount": 250.00, "currency": "USD", "cardNumber": "4111-1111-1111-1111"}' | jq .
 ```
