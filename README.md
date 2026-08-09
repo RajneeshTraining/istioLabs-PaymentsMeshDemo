@@ -82,7 +82,7 @@ For multiple requests, use below command -
 ```bash
 kubectl exec -it testing-pod -n payment-mesh -- sh -c '
 for i in $(seq 1 20); do
-  curl -s -X POST "https://<hostname:port>/checkout" \
+  curl -s -X POST "https://<gateway-pod-ip:port>/checkout" \
     -H "Content-Type: application/json" \
     -d "{\"amount\":250.00,\"currency\":\"USD\",\"cardNumber\":\"4111-1111-1111-1111\"}" \
   | jq .          
@@ -94,7 +94,7 @@ done'
 for i in $(seq 1 20); do
   echo "========== REQUEST $i =========="
 
-  curl -sS -X POST 'http://192.168.1.40:8080/checkout' \
+  curl -sS -X POST 'http://gateway-pod-ip:8080/checkout' \
     -H 'Content-Type: application/json' \
     -d '{"amount":250.00,"currency":"USD","cardNumber":"4111-1111-1111-1111"}' \
   | jq .
