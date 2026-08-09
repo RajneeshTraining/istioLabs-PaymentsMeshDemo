@@ -80,7 +80,7 @@ Sample response:
 
 For multiple requests, use below command -
 ```bash
-kubectl exec -n payment-mesh testing-pod -- sh -c '
+kubectl exec -it -n payment-mesh testing-pod -- sh -c '
 for i in $(seq 1 20); do
   echo "========== REQUEST $i =========="
   curl -sS -X POST "http://192.168.1.40:8080/checkout" \
