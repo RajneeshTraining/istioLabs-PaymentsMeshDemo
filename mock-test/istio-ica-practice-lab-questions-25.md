@@ -39,8 +39,12 @@ Apply the baseline and confirm all pods are `1/1 Ready` before starting Task 1. 
 Install Istio using the `demo` configuration profile. Confirm `istiod`, `istio-ingressgateway`, and `istio-egressgateway` are all `Running` in `istio-system`.
 
 **Verify:**
+```istioctl verify-install``` command is deprecated and removed in recent versions of Istio. It is no longer available in v1.30.x.
+Instead of verify-install, you can use standard Kubernetes and Istio diagnostic commands to check your mesh health:
+1. Run ``` kubectl get all -n istio-system ``` to inspect control plane resources.
+2. Use ```istioctl proxy-status``` (or istioctl ps) to check proxy and data plane synchronization.
+3. Run ```istioctl x precheck``` before performing installations or upgrades
 ```bash
-istioctl verify-install
 kubectl get pods -n istio-system
 ```
 
