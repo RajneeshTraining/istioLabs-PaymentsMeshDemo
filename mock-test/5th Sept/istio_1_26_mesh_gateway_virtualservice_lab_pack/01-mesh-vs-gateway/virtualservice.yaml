@@ -1,0 +1,44 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: catalog
+  namespace: mesh-gateway-labs
+spec:
+  hosts:
+  - catalog.mesh-gateway-labs.svc.cluster.local
+  - catalog.example.test
+  gateways:
+  - mesh
+  - edge-gateway
+  http:
+  - name: internal-catalog
+    match:
+    - gateways:
+      - mesh
+    route:
+    - destination:
+        host: backend.mesh-gateway-labs.svc.cluster.local
+        subset: v2
+  - name: external-catalog
+    match:
+    - gateways:
+      - edge-gateway
+    route:
+    - destination:
+        host: backend.mesh-gateway-labs.svc.cluster.local
+        subset: v1
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: backend
+  namespace: mesh-gateway-labs
+spec:
+  host: backend.mesh-gateway-labs.svc.cluster.local
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2

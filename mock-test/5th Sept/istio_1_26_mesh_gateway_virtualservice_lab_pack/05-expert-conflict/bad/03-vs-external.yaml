@@ -1,0 +1,13 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: orders-external
+  namespace: mesh-gateway-labs
+spec:
+  hosts: [orders.example.test]
+  gateways: [edge-gateway]
+  http:
+  - route:
+    - destination:
+        host: backend.mesh-gateway-labs.svc.cluster.local
+        subset: v1
