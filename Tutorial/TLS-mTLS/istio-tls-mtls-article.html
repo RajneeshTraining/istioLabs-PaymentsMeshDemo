@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Istio Security Deep Dive: Ingress mTLS, Passthrough Gateways &amp; Sidecar TLS Termination</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b1120;
+    --panel:#111a2e;
+    --panel-2:#0e1526;
+    --ink:#e7ecf6;
+    --ink-dim:#a7b2c8;
+    --ink-faint:#71809b;
+    --rule:#22304d;
+    --cyan:#38bdf8;
+    --amber:#f5b344;
+    --green:#34d399;
+    --purple:#a78bfa;
+    --cyan-soft:rgba(56,189,248,0.10);
+    --amber-soft:rgba(245,179,68,0.10);
+    --green-soft:rgba(52,211,153,0.10);
+    --purple-soft:rgba(167,139,250,0.10);
+    --maxw:740px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--cyan-soft);color:var(--ink);}
+
+  a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(56,189,248,0.35);}
+  a:hover{border-bottom-color:var(--cyan);}
+
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px;}
+
+  /* ---------- Masthead ---------- */
+  header.masthead{
+    padding:88px 24px 64px;
+    border-bottom:1px solid var(--rule);
+    background:
+      radial-gradient(700px 320px at 15% -10%, rgba(56,189,248,0.10), transparent 60%),
+      radial-gradient(700px 320px at 90% 0%, rgba(52,211,153,0.08), transparent 60%);
+  }
+  .kicker{
+    max-width:var(--maxw);margin:0 auto;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--ink-faint);
+    letter-spacing:0.02em;
+    margin-bottom:22px;
+    display:flex;gap:10px;align-items:center;
+  }
+  .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;}
+  h1.title{
+    max-width:var(--maxw);margin:0 auto;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:clamp(32px,5vw,50px);
+    line-height:1.12;
+    letter-spacing:-0.01em;
+    color:#fff;
+  }
+  p.dek{
+    max-width:var(--maxw);margin:22px auto 0;
+    font-size:19px;
+    color:var(--ink-dim);
+    max-width:62ch;
+  }
+  .byline{
+    max-width:var(--maxw);margin:36px auto 0;
+    display:flex;align-items:center;gap:14px;
+    font-size:14px;color:var(--ink-faint);
+  }
+  .avatar{
+    width:38px;height:38px;border-radius:50%;
+    background:linear-gradient(135deg,var(--cyan),var(--green));
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-weight:600;color:#0b1120;font-size:14px;
+  }
+  .byline b{color:var(--ink);}
+  .byline .sep{opacity:0.5;}
+
+  /* ---------- Legend chips (recurring role colors) ---------- */
+  .legend{
+    max-width:var(--maxw);margin:30px auto 0;
+    display:flex;flex-wrap:wrap;gap:10px;
+  }
+  .chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    padding:6px 12px;
+    border-radius:100px;
+    border:1px solid var(--rule);
+    display:flex;align-items:center;gap:7px;
+    color:var(--ink-dim);
+  }
+  .chip .sw{width:8px;height:8px;border-radius:50%;}
+
+  /* ---------- Article body ---------- */
+  article{max-width:var(--maxw);margin:0 auto;padding:56px 24px 40px;}
+  article > p{font-size:18px;color:#dbe2f0;margin:0 0 24px;}
+  article > p.lead{font-size:20px;color:var(--ink);}
+
+  h2{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:30px;
+    color:#fff;
+    margin:64px 0 10px;
+    padding-top:28px;
+    border-top:1px solid var(--rule);
+    letter-spacing:-0.005em;
+  }
+  h2 .num{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;font-weight:500;
+    color:var(--ink-faint);
+    display:block;margin-bottom:10px;
+    letter-spacing:0.05em;
+  }
+  h3{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-weight:600;
+    font-size:19px;
+    color:#fff;
+    margin:34px 0 12px;
+  }
+  h3.pattern-a{color:var(--amber);}
+  h3.pattern-b{color:var(--cyan);}
+  h3.pattern-c{color:var(--green);}
+
+  section p{font-size:17px;color:#c9d2e3;margin:0 0 20px;}
+  section ul, section ol{font-size:17px;color:#c9d2e3;padding-left:22px;margin:0 0 20px;}
+  section li{margin-bottom:8px;}
+  strong{color:#fff;font-weight:600;}
+  code{
+    font-family:'IBM Plex Mono',monospace;
+    background:var(--panel-2);
+    border:1px solid var(--rule);
+    padding:2px 6px;border-radius:5px;
+    font-size:0.88em;color:#ffd9a0;
+  }
+
+  pre{
+    background:#0a0f1d;
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:20px 22px;
+    overflow-x:auto;
+    margin:0 0 24px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13.5px;
+    line-height:1.6;
+  }
+  pre code{background:none;border:none;padding:0;color:#d3dcee;}
+  .yaml-key{color:var(--cyan);}
+  .yaml-val{color:#ffd9a0;}
+  .yaml-comment{color:var(--ink-faint);font-style:italic;}
+
+  /* Figures */
+  figure{margin:36px -12px 32px;}
+  figure svg{width:100%;height:auto;display:block;border-radius:12px;border:1px solid var(--rule);}
+  figcaption{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    color:var(--ink-faint);
+    text-align:center;
+    margin-top:12px;
+    padding:0 12px;
+  }
+
+  /* Callouts */
+  .callout{
+    border-left:3px solid var(--green);
+    background:var(--green-soft);
+    padding:16px 20px;
+    border-radius:0 8px 8px 0;
+    margin:0 0 26px;
+    font-size:15.5px;
+    color:#d3f5e6;
+  }
+  .callout b{color:#fff;}
+  .callout.trap{border-color:var(--amber);background:var(--amber-soft);color:#ffe9c2;}
+  .callout.trap b{color:#fff;}
+
+  /* Trade-off box */
+  .box{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:18px 22px;
+    margin:0 0 24px;
+  }
+  .box h4{
+    margin:0 0 8px;
+    font-size:13px;
+    text-transform:none;
+    color:var(--ink-faint);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .box p{margin:0;font-size:15.5px;color:#c9d2e3;}
+
+  /* Table */
+  .table-scroll{overflow-x:auto;margin:0 0 30px;border-radius:10px;border:1px solid var(--rule);}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;background:var(--panel);}
+  thead th{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--ink-faint);
+    font-weight:500;
+    padding:14px 16px;
+    border-bottom:1px solid var(--rule);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:14px 16px;
+    border-bottom:1px solid var(--rule);
+    color:#c9d2e3;
+    vertical-align:top;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody td:first-child{color:#fff;font-weight:500;white-space:nowrap;}
+
+  /* Exam Q&A accordion-ish cards */
+  .qa{
+    border:1px solid var(--rule);
+    background:var(--panel);
+    border-radius:10px;
+    margin:0 0 14px;
+    padding:18px 22px;
+  }
+  .qa .q{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--purple);
+    margin:0 0 8px;
+    letter-spacing:0.01em;
+  }
+  .qa .a{margin:0;color:#dbe2f0;font-size:15.5px;}
+
+  /* Mental model list */
+  .mm{
+    list-style:none;padding:0;margin:0 0 10px;
+    display:grid;gap:12px;
+  }
+  .mm li{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:16px 20px;
+    font-size:15px;
+    color:#c9d2e3;
+  }
+  .mm code{color:var(--cyan);}
+
+  hr.div{border:none;border-top:1px solid var(--rule);margin:56px 0 40px;}
+
+  footer{
+    max-width:var(--maxw);margin:0 auto;
+    padding:0 24px 90px;
+    color:var(--ink-faint);
+    font-size:15px;
+  }
+  footer .clap{
+    display:inline-flex;align-items:center;gap:8px;
+    color:var(--ink-dim);
+  }
+
+  @media (max-width:600px){
+    header.masthead{padding:56px 20px 44px;}
+    article{padding:40px 20px 20px;}
+    h2{font-size:25px;}
+    figure{margin-left:0;margin-right:0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="kicker"><span class="dot"></span>SERVICE MESH SECURITY · TUTORIAL · EXAM PREP</div>
+  <h1 class="title">Istio Security Deep Dive: Ingress mTLS, Passthrough Gateways &amp; Sidecar TLS Termination</h1>
+  <p class="dek">A step-by-step, exam-ready walkthrough of where TLS actually "ends" in an Istio service mesh — with architecture diagrams, working YAML, and a comparison table you'll want to bookmark.</p>
+  <div class="byline">
+    <div class="avatar">CI</div>
+    <span><b>Cloud Infra Notes</b></span>
+    <span class="sep">·</span>
+    <span>14 min read</span>
+    <span class="sep">·</span>
+    <span>Istio 1.22+</span>
+  </div>
+  <div class="legend">
+    <span class="chip"><span class="sw" style="background:var(--cyan)"></span>Client / external traffic</span>
+    <span class="chip"><span class="sw" style="background:var(--amber)"></span>Ingress Gateway</span>
+    <span class="chip"><span class="sw" style="background:var(--green)"></span>Sidecar / mesh mTLS</span>
+    <span class="chip"><span class="sw" style="background:var(--purple)"></span>App container</span>
+  </div>
+</header>
+
+<article>
+
+<p class="lead">If you've worked with Istio for more than a week, you've probably hit this wall: <em>"Where exactly does my TLS connection get decrypted?"</em> The docs mention Gateways, PeerAuthentication, DestinationRules, <code>MUTUAL</code>, <code>PASSTHROUGH</code>, <code>ISTIO_MUTUAL</code>… and none of it clicks until you see the actual traffic flow.</p>
+
+<p>This post fixes that. By the end, you'll be able to draw the architecture from memory, write the YAML without copy-pasting, and answer any CKA/CKS-style or Istio certification question on this topic.</p>
+
+<!-- SECTION 1 -->
+<h2><span class="num">01</span>The one idea that explains everything</h2>
+<p>A request in Istio travels through <strong>three potential decryption points:</strong></p>
+<pre><code>Client  →  Ingress Gateway  →  Envoy Sidecar  →  App Container</code></pre>
+<p>Every "pattern" you'll ever configure is just an answer to: <strong>at which of these points does the TLS connection actually get decrypted?</strong></p>
+
+<figure>
+<svg viewBox="0 0 1000 380" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1000" height="380" fill="#0f172a"/>
+  <text x="500" y="40" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="bold">Where Can TLS Terminate in Istio?</text>
+
+  <!-- Client -->
+  <circle cx="90" cy="200" r="42" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="90" y="195" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="bold">Client</text>
+  <text x="90" y="212" text-anchor="middle" fill="#94a3b8" font-size="10">(with cert)</text>
+
+  <!-- Arrow 1 -->
+  <line x1="132" y1="200" x2="250" y2="200" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="190" y="185" text-anchor="middle" fill="#38bdf8" font-size="12">TLS</text>
+
+  <!-- Gateway -->
+  <rect x="250" y="150" width="140" height="100" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="320" y="185" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Ingress</text>
+  <text x="320" y="203" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Gateway</text>
+  <text x="320" y="228" text-anchor="middle" fill="#fbbf24" font-size="11">Point A: terminate</text>
+  <text x="320" y="242" text-anchor="middle" fill="#fbbf24" font-size="11">or passthrough?</text>
+
+  <!-- Arrow 2 -->
+  <line x1="390" y1="200" x2="530" y2="200" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="460" y="185" text-anchor="middle" fill="#38bdf8" font-size="12">TLS / mTLS</text>
+
+  <!-- Sidecar -->
+  <rect x="530" y="150" width="140" height="100" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="600" y="185" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Envoy</text>
+  <text x="600" y="203" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Sidecar</text>
+  <text x="600" y="228" text-anchor="middle" fill="#6ee7b7" font-size="11">Point B: mesh</text>
+  <text x="600" y="242" text-anchor="middle" fill="#6ee7b7" font-size="11">mTLS terminates here</text>
+
+  <!-- Arrow 3 -->
+  <line x1="670" y1="200" x2="800" y2="200" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow-grey)"/>
+  <text x="735" y="185" text-anchor="middle" fill="#94a3b8" font-size="12">plaintext</text>
+  <text x="735" y="220" text-anchor="middle" fill="#64748b" font-size="10">(localhost)</text>
+
+  <!-- App -->
+  <rect x="800" y="160" width="120" height="80" rx="10" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="860" y="205" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">App</text>
+  <text x="860" y="222" text-anchor="middle" fill="#c4b5fd" font-size="11">Container</text>
+
+  <!-- Legend -->
+  <text x="500" y="320" text-anchor="middle" fill="#94a3b8" font-size="13">Every design decision below is really about choosing WHICH of these points decrypts the traffic.</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrow-grey" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+</svg>
+
+<figcaption>Fig. 1 — The three hops a request takes, and the point at which each pattern chooses to decrypt.</figcaption>
+</figure>
+
+<p>Once this clicks, the rest of Istio's security model stops feeling like magic and starts feeling like plumbing.</p>
+
+<div class="callout"><b>Exam tip.</b> If a question describes a scenario and asks "which component decrypts the traffic," don't think about products — think about hops. Every hop is either "TLS ends here" or "TLS passes through unchanged."</div>
+
+<!-- SECTION 2 -->
+<h2><span class="num">02</span>The building blocks — know these cold</h2>
+<div class="table-scroll">
+<table>
+<thead><tr><th>Resource</th><th>What it controls</th></tr></thead>
+<tbody>
+<tr><td>Gateway</td><td>The listener config on the ingress/egress proxy — port, protocol, and <strong>TLS mode</strong></td></tr>
+<tr><td>VirtualService</td><td>Routing rules for traffic that already arrived at the Gateway</td></tr>
+<tr><td>DestinationRule</td><td>The <strong>client-side</strong> TLS behavior when a proxy calls another service</td></tr>
+<tr><td>PeerAuthentication</td><td>The <strong>server-side</strong> mTLS requirement for a sidecar (STRICT / PERMISSIVE / DISABLE)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>There's a trap here that examiners love:</p>
+
+<div class="callout trap">
+<b>Two different mTLS systems exist, and mixing them up is the #1 conceptual mistake.</b>
+<ul style="margin-top:10px;margin-bottom:0;">
+<li><strong>Ingress mTLS</strong> — your own PKI, verifying external clients (partners, devices, browsers with client certs) at the edge.</li>
+<li><strong>Mesh mTLS</strong> — Istio's own auto-managed PKI, issued by <code>istiod</code>, authenticating workload-to-workload traffic using SPIFFE identities.</li>
+</ul>
+</div>
+
+<p>Keep these mentally separate. A Gateway with <code>mode: MUTUAL</code> has nothing to do with <code>PeerAuthentication</code> unless you explicitly wire them together.</p>
+
+<!-- SECTION 3 -->
+<h2><span class="num">03</span>Pattern A — Ingress Gateway terminates mTLS</h2>
+<h3 class="pattern-a">The classic "zero-trust edge" setup</h3>
+<p>Clients — often B2B partners or IoT devices — present a certificate, and the <strong>Gateway itself</strong> verifies it and decrypts the payload.</p>
+
+<figure>
+<svg viewBox="0 0 1000 340" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1000" height="340" fill="#0f172a"/>
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">Pattern A — Gateway Terminates mTLS (mode: MUTUAL)</text>
+
+  <circle cx="90" cy="190" r="42" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="90" y="185" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">Client</text>
+  <text x="90" y="200" text-anchor="middle" fill="#94a3b8" font-size="9">cert + key</text>
+
+  <line x1="132" y1="190" x2="270" y2="190" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#a1)"/>
+  <text x="200" y="172" text-anchor="middle" fill="#38bdf8" font-size="12">mTLS handshake</text>
+
+  <rect x="270" y="110" width="200" height="160" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="3"/>
+  <text x="370" y="140" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Ingress Gateway</text>
+  <text x="370" y="162" text-anchor="middle" fill="#fbbf24" font-size="11">1. Presents server cert</text>
+  <text x="370" y="180" text-anchor="middle" fill="#fbbf24" font-size="11">2. Verifies client cert</text>
+  <text x="370" y="198" text-anchor="middle" fill="#fbbf24" font-size="11">   against CA bundle</text>
+  <text x="370" y="220" text-anchor="middle" fill="#fbbf24" font-size="11">3. DECRYPTS payload</text>
+  <text x="370" y="250" text-anchor="middle" fill="#facc15" font-size="10" font-style="italic">credentialName: server-cert</text>
+
+  <line x1="470" y1="190" x2="610" y2="190" stroke="#34d399" stroke-width="2.5" marker-end="url(#a2)"/>
+  <text x="540" y="172" text-anchor="middle" fill="#34d399" font-size="11">re-encrypt via</text>
+  <text x="540" y="150" text-anchor="middle" fill="#34d399" font-size="11">ISTIO_MUTUAL</text>
+
+  <rect x="610" y="140" width="150" height="100" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="685" y="175" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold">Sidecar</text>
+  <text x="685" y="195" text-anchor="middle" fill="#6ee7b7" font-size="10">mesh mTLS</text>
+  <text x="685" y="212" text-anchor="middle" fill="#6ee7b7" font-size="10">(separate hop)</text>
+
+  <line x1="760" y1="190" x2="870" y2="190" stroke="#94a3b8" stroke-width="2" marker-end="url(#a3)"/>
+  <text x="815" y="172" text-anchor="middle" fill="#94a3b8" font-size="10">plaintext</text>
+
+  <rect x="870" y="160" width="100" height="60" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="920" y="196" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">App</text>
+
+  <text x="500" y="305" text-anchor="middle" fill="#94a3b8" font-size="12">Two independent TLS sessions: (Client ↔ Gateway) and (Gateway ↔ Sidecar). The gateway is a real TLS endpoint.</text>
+
+  <defs>
+    <marker id="a1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#38bdf8"/></marker>
+    <marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#34d399"/></marker>
+    <marker id="a3" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/></marker>
+  </defs>
+</svg>
+
+<figcaption>Fig. 2 — mode: MUTUAL makes the Gateway a real TLS endpoint with its own cert and CA-verified client auth.</figcaption>
+</figure>
+
+<pre><code><span class="yaml-key">apiVersion:</span> networking.istio.io/v1
+<span class="yaml-key">kind:</span> Gateway
+<span class="yaml-key">metadata:</span>
+  <span class="yaml-key">name:</span> mtls-ingress
+<span class="yaml-key">spec:</span>
+  <span class="yaml-key">selector:</span>
+    <span class="yaml-key">istio:</span> ingressgateway
+  <span class="yaml-key">servers:</span>
+  - <span class="yaml-key">port:</span>
+      <span class="yaml-key">number:</span> 443
+      <span class="yaml-key">name:</span> https
+      <span class="yaml-key">protocol:</span> HTTPS
+    <span class="yaml-key">tls:</span>
+      <span class="yaml-key">mode:</span> <span class="yaml-val">MUTUAL</span>                  <span class="yaml-comment"># Gateway is a real TLS server</span>
+      <span class="yaml-key">credentialName:</span> server-cert   <span class="yaml-comment"># k8s Secret: tls.crt, tls.key, ca.crt</span>
+    <span class="yaml-key">hosts:</span>
+    - <span class="yaml-val">"api.example.com"</span></code></pre>
+
+<h3 style="color:#fff;">What's really happening</h3>
+<ol>
+<li>The Gateway presents its own server certificate to the client.</li>
+<li>It requests and <strong>verifies the client's certificate</strong> against a CA bundle stored in the <code>server-cert</code> Secret.</li>
+<li>It <strong>decrypts</strong> the payload right there.</li>
+<li>Anything after this point (Gateway → Sidecar → App) is a brand-new, independent connection — usually secured separately with mesh mTLS (<code>ISTIO_MUTUAL</code>).</li>
+</ol>
+
+<div class="box"><h4>WHEN TO USE IT</h4><p>Partner/B2B APIs where clients hold certs you issued · you want centralized cert rotation and a single, auditable TLS termination point · you're fine with the Gateway seeing plaintext (it's inside your trust boundary).</p></div>
+<div class="box"><h4>THE TRADE-OFF</h4><p>The Gateway becomes a single point of decrypted-traffic exposure. If it's compromised, everything flowing through it is visible in plaintext, for every service behind it.</p></div>
+
+<!-- SECTION 4 -->
+<h2><span class="num">04</span>Pattern B — Gateway without TLS termination (Passthrough)</h2>
+<h3 class="pattern-b">Now flip it</h3>
+<p>The Gateway never decrypts anything. It peeks at the <strong>SNI (Server Name Indication)</strong> field — sent in plaintext even during a TLS handshake — and routes the encrypted bytes untouched.</p>
+
+<figure>
+<svg viewBox="0 0 1000 340" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1000" height="340" fill="#0f172a"/>
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">Pattern B — Gateway PASSTHROUGH (no termination)</text>
+
+  <circle cx="90" cy="190" r="42" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="90" y="185" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="bold">Client</text>
+  <text x="90" y="200" text-anchor="middle" fill="#94a3b8" font-size="9">cert + key</text>
+
+  <line x1="132" y1="190" x2="270" y2="190" stroke="#38bdf8" stroke-width="3" marker-end="url(#b1)"/>
+  <text x="200" y="172" text-anchor="middle" fill="#38bdf8" font-size="12">encrypted TLS bytes</text>
+
+  <rect x="270" y="130" width="220" height="120" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="3" stroke-dasharray="6,3"/>
+  <text x="380" y="160" text-anchor="middle" fill="#f8fafc" font-size="14" font-weight="bold">Ingress Gateway</text>
+  <text x="380" y="185" text-anchor="middle" fill="#fbbf24" font-size="11">Reads SNI only</text>
+  <text x="380" y="203" text-anchor="middle" fill="#fbbf24" font-size="11">"secure.example.com"</text>
+  <text x="380" y="225" text-anchor="middle" fill="#f87171" font-size="11" font-weight="bold">Never decrypts</text>
+
+  <line x1="490" y1="190" x2="630" y2="190" stroke="#38bdf8" stroke-width="3" marker-end="url(#b1)"/>
+  <text x="560" y="172" text-anchor="middle" fill="#38bdf8" font-size="11">same TLS stream</text>
+  <text x="560" y="215" text-anchor="middle" fill="#64748b" font-size="10">(byte-for-byte forwarded)</text>
+
+  <rect x="630" y="140" width="160" height="100" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="2.5"/>
+  <text x="710" y="172" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold">Sidecar Envoy</text>
+  <text x="710" y="192" text-anchor="middle" fill="#6ee7b7" font-size="10">Verifies client cert</text>
+  <text x="710" y="208" text-anchor="middle" fill="#6ee7b7" font-size="10">DECRYPTS here</text>
+
+  <line x1="790" y1="190" x2="900" y2="190" stroke="#94a3b8" stroke-width="2" marker-end="url(#b2)"/>
+  <text x="845" y="172" text-anchor="middle" fill="#94a3b8" font-size="10">plaintext</text>
+
+  <rect x="900" y="160" width="80" height="60" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="940" y="196" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">App</text>
+
+  <text x="500" y="300" text-anchor="middle" fill="#94a3b8" font-size="12">One unbroken TLS session: Client ↔ Sidecar. The gateway is a transparent router, not a TLS endpoint.</text>
+
+  <defs>
+    <marker id="b1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#38bdf8"/></marker>
+    <marker id="b2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/></marker>
+  </defs>
+</svg>
+
+<figcaption>Fig. 3 — The Gateway reads only the SNI hostname; the encrypted stream passes through byte-for-byte.</figcaption>
+</figure>
+
+<pre><code><span class="yaml-key">apiVersion:</span> networking.istio.io/v1
+<span class="yaml-key">kind:</span> Gateway
+<span class="yaml-key">metadata:</span>
+  <span class="yaml-key">name:</span> passthrough-gateway
+<span class="yaml-key">spec:</span>
+  <span class="yaml-key">selector:</span>
+    <span class="yaml-key">istio:</span> ingressgateway
+  <span class="yaml-key">servers:</span>
+  - <span class="yaml-key">port:</span>
+      <span class="yaml-key">number:</span> 443
+      <span class="yaml-key">name:</span> tls
+      <span class="yaml-key">protocol:</span> TLS
+    <span class="yaml-key">tls:</span>
+      <span class="yaml-key">mode:</span> <span class="yaml-val">PASSTHROUGH</span>        <span class="yaml-comment"># Gateway never decrypts</span>
+    <span class="yaml-key">hosts:</span>
+    - <span class="yaml-val">"secure.example.com"</span></code></pre>
+
+<pre><code><span class="yaml-key">apiVersion:</span> networking.istio.io/v1
+<span class="yaml-key">kind:</span> VirtualService
+<span class="yaml-key">metadata:</span>
+  <span class="yaml-key">name:</span> passthrough-route
+<span class="yaml-key">spec:</span>
+  <span class="yaml-key">hosts:</span>
+  - <span class="yaml-val">"secure.example.com"</span>
+  <span class="yaml-key">gateways:</span>
+  - passthrough-gateway
+  <span class="yaml-key">tls:</span>
+  - <span class="yaml-key">match:</span>
+    - <span class="yaml-key">port:</span> 443
+      <span class="yaml-key">sniHosts:</span>
+      - <span class="yaml-val">"secure.example.com"</span>
+    <span class="yaml-key">route:</span>
+    - <span class="yaml-key">destination:</span>
+        <span class="yaml-key">host:</span> my-backend-service
+        <span class="yaml-key">port:</span>
+          <span class="yaml-key">number:</span> 443</code></pre>
+
+<p>Notice: because the payload is still encrypted, you <strong>can't</strong> match on HTTP paths or headers here — routing has to be done via <code>tls.match.sniHosts</code>, not <code>http.match</code>.</p>
+
+<div class="box"><h4>WHEN TO USE IT</h4><p>True end-to-end encryption is a hard compliance requirement — not even Istio's own proxy should see plaintext · the backend runs its own custom TLS stack that shouldn't be replaced.</p></div>
+<div class="box"><h4>THE TRADE-OFF</h4><p>You lose HTTP-layer features at the Gateway — no path-based routing, no header manipulation, no request-level observability at the edge, since it's just watching encrypted bytes fly past.</p></div>
+
+<!-- SECTION 5 -->
+<h2><span class="num">05</span>Pattern C — Sidecar terminates TLS (Mesh mTLS)</h2>
+<h3 class="pattern-c">Where Pattern B's story finishes</h3>
+<p>This is also what secretly runs for <strong>all</strong> east-west (pod-to-pod) traffic in a mesh by default.</p>
+
+<figure>
+<svg viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1000" height="400" fill="#0f172a"/>
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">Pattern C — Sidecar Terminates Mesh mTLS</text>
+
+  <!-- istiod -->
+  <rect x="400" y="60" width="200" height="70" rx="10" fill="#1e293b" stroke="#e879f9" stroke-width="2"/>
+  <text x="500" y="90" text-anchor="middle" fill="#f8fafc" font-size="13" font-weight="bold">istiod (CA)</text>
+  <text x="500" y="110" text-anchor="middle" fill="#f0abfc" font-size="10">issues short-lived certs</text>
+
+  <line x1="460" y1="130" x2="290" y2="185" stroke="#e879f9" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#c3)"/>
+  <line x1="540" y1="130" x2="710" y2="185" stroke="#e879f9" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#c3)"/>
+  <text x="330" y="150" fill="#f0abfc" font-size="9">SDS: cert for</text>
+  <text x="330" y="162" fill="#f0abfc" font-size="9">sa/service-a</text>
+  <text x="640" y="150" fill="#f0abfc" font-size="9">SDS: cert for</text>
+  <text x="640" y="162" fill="#f0abfc" font-size="9">sa/service-b</text>
+
+  <!-- Pod A -->
+  <rect x="130" y="185" width="220" height="130" rx="10" fill="#0b1220" stroke="#475569" stroke-width="1.5"/>
+  <text x="240" y="205" text-anchor="middle" fill="#94a3b8" font-size="11">Pod: service-a</text>
+  <rect x="150" y="220" width="180" height="45" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="240" y="247" text-anchor="middle" fill="#e2e8f0" font-size="11">App Container</text>
+  <rect x="150" y="275" width="180" height="30" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="240" y="295" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="bold">Envoy Sidecar</text>
+
+  <!-- Pod B -->
+  <rect x="650" y="185" width="220" height="130" rx="10" fill="#0b1220" stroke="#475569" stroke-width="1.5"/>
+  <text x="760" y="205" text-anchor="middle" fill="#94a3b8" font-size="11">Pod: service-b</text>
+  <rect x="670" y="220" width="180" height="45" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="760" y="247" text-anchor="middle" fill="#e2e8f0" font-size="11">App Container</text>
+  <rect x="670" y="275" width="180" height="30" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="760" y="295" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="bold">Envoy Sidecar</text>
+
+  <!-- mTLS between sidecars -->
+  <line x1="330" y1="290" x2="670" y2="290" stroke="#34d399" stroke-width="3" marker-start="url(#c1)" marker-end="url(#c1)"/>
+  <text x="500" y="278" text-anchor="middle" fill="#34d399" font-size="12" font-weight="bold">Mesh mTLS (STRICT)</text>
+  <text x="500" y="335" text-anchor="middle" fill="#64748b" font-size="10">SPIFFE ID: spiffe://cluster.local/ns/prod/sa/service-a  ↔  service-b</text>
+
+  <!-- localhost plaintext -->
+  <line x1="240" y1="265" x2="240" y2="275" stroke="#94a3b8" stroke-width="1.5"/>
+  <line x1="760" y1="265" x2="760" y2="275" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="240" y="360" text-anchor="middle" fill="#94a3b8" font-size="9">plaintext over localhost</text>
+  <text x="760" y="360" text-anchor="middle" fill="#94a3b8" font-size="9">plaintext over localhost</text>
+
+  <defs>
+    <marker id="c1" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#34d399"/></marker>
+    <marker id="c3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#e879f9"/></marker>
+  </defs>
+</svg>
+
+<figcaption>Fig. 4 — istiod issues short-lived, SPIFFE-based certs to every sidecar via SDS; sidecars mutually authenticate before decrypting to plaintext on localhost.</figcaption>
+</figure>
+
+<p><strong>Part 1 — server-side requirement:</strong></p>
+<pre><code><span class="yaml-key">apiVersion:</span> security.istio.io/v1
+<span class="yaml-key">kind:</span> PeerAuthentication
+<span class="yaml-key">metadata:</span>
+  <span class="yaml-key">name:</span> default
+  <span class="yaml-key">namespace:</span> prod
+<span class="yaml-key">spec:</span>
+  <span class="yaml-key">mtls:</span>
+    <span class="yaml-key">mode:</span> <span class="yaml-val">STRICT</span>      <span class="yaml-comment"># sidecar REJECTS anything that isn't mTLS</span></code></pre>
+
+<p><strong>Part 2 — client-side behavior:</strong></p>
+<pre><code><span class="yaml-key">apiVersion:</span> networking.istio.io/v1
+<span class="yaml-key">kind:</span> DestinationRule
+<span class="yaml-key">metadata:</span>
+  <span class="yaml-key">name:</span> my-backend-mtls
+<span class="yaml-key">spec:</span>
+  <span class="yaml-key">host:</span> my-backend-service
+  <span class="yaml-key">trafficPolicy:</span>
+    <span class="yaml-key">tls:</span>
+      <span class="yaml-key">mode:</span> <span class="yaml-val">ISTIO_MUTUAL</span>   <span class="yaml-comment"># use istiod-issued certs automatically</span></code></pre>
+
+<h3 style="color:#fff;">What's really happening (the part everyone forgets to explain)</h3>
+<ol>
+<li><code>istiod</code>'s built-in CA issues every pod a <strong>short-lived certificate</strong>, tied to its Kubernetes <strong>service account</strong> — its SPIFFE identity, e.g. <code>spiffe://cluster.local/ns/prod/sa/my-backend</code>.</li>
+<li>Certs are delivered via <strong>SDS (Secret Discovery Service)</strong> and live only <strong>in-memory</strong> inside the sidecar — never written to disk.</li>
+<li>When Sidecar A calls Sidecar B, both sides present these certs and <strong>mutually authenticate</strong>.</li>
+<li>Only then does the sidecar decrypt and hand off <strong>plaintext over localhost</strong> to its own app container.</li>
+</ol>
+
+<div class="callout"><b>Exam tip.</b> STRICT mode rejects plaintext. PERMISSIVE mode (the default during migrations) accepts both plaintext and mTLS on the same port — this is the safe way to roll out mTLS without breaking existing traffic mid-migration.</div>
+
+<!-- SECTION 6 -->
+<h2><span class="num">06</span>Putting it together — the full end-to-end flow</h2>
+<p>Combine Pattern B (Gateway passthrough) with Pattern C (sidecar termination) and you get genuine, unbroken, end-to-end encryption:</p>
+
+<figure>
+<svg viewBox="0 0 1000 320" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1000" height="320" fill="#0f172a"/>
+  <text x="500" y="36" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="bold">The Complete Picture: Passthrough Gateway + Sidecar mTLS Termination</text>
+
+  <circle cx="70" cy="180" r="38" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+  <text x="70" y="176" text-anchor="middle" fill="#e2e8f0" font-size="11" font-weight="bold">Client</text>
+  <text x="70" y="192" text-anchor="middle" fill="#94a3b8" font-size="9">1 cert</text>
+
+  <line x1="108" y1="180" x2="220" y2="180" stroke="#38bdf8" stroke-width="3" marker-end="url(#f1)"/>
+
+  <rect x="220" y="130" width="170" height="100" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="3" stroke-dasharray="6,3"/>
+  <text x="305" y="158" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">Ingress Gateway</text>
+  <text x="305" y="178" text-anchor="middle" fill="#fbbf24" font-size="10">mode: PASSTHROUGH</text>
+  <text x="305" y="196" text-anchor="middle" fill="#fbbf24" font-size="10">routes by SNI only</text>
+  <text x="305" y="214" text-anchor="middle" fill="#f87171" font-size="10">step 1: no decrypt</text>
+
+  <line x1="390" y1="180" x2="500" y2="180" stroke="#38bdf8" stroke-width="3" marker-end="url(#f1)"/>
+
+  <rect x="500" y="130" width="170" height="100" rx="10" fill="#1e293b" stroke="#34d399" stroke-width="3"/>
+  <text x="585" y="158" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">Sidecar Envoy</text>
+  <text x="585" y="178" text-anchor="middle" fill="#6ee7b7" font-size="10">PeerAuthentication:</text>
+  <text x="585" y="196" text-anchor="middle" fill="#6ee7b7" font-size="10">STRICT</text>
+  <text x="585" y="214" text-anchor="middle" fill="#34d399" font-size="10">step 2: DECRYPT here</text>
+
+  <line x1="670" y1="180" x2="770" y2="180" stroke="#94a3b8" stroke-width="2" marker-end="url(#f2)"/>
+  <text x="720" y="165" text-anchor="middle" fill="#94a3b8" font-size="9">plaintext</text>
+
+  <rect x="770" y="150" width="120" height="60" rx="8" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="830" y="185" text-anchor="middle" fill="#f8fafc" font-size="12" font-weight="bold">App</text>
+
+  <!-- step numbers row -->
+  <text x="500" y="270" text-anchor="middle" fill="#cbd5e1" font-size="12">One continuous encrypted channel from the client's device all the way to the workload's sidecar —</text>
+  <text x="500" y="290" text-anchor="middle" fill="#cbd5e1" font-size="12">the ingress gateway never possesses decrypted data at any point.</text>
+
+  <defs>
+    <marker id="f1" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#38bdf8"/></marker>
+    <marker id="f2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/></marker>
+  </defs>
+</svg>
+
+<figcaption>Fig. 5 — One continuous encrypted channel from client to sidecar. The Gateway never possesses decrypted data.</figcaption>
+</figure>
+
+<pre><code>1. Client opens a TLS connection to secure.example.com, presenting its cert.
+2. Ingress Gateway (PASSTHROUGH) reads only the SNI — never decrypts —
+   and forwards the raw TCP stream untouched.
+3. The destination pod's Envoy sidecar terminates the TLS:
+     - validates the client cert against the configured CA
+     - decrypts the payload
+4. Sidecar hands plaintext to the app container over localhost.
+5. Response flows back the same way — sidecar re-encrypts,
+   gateway passes the bytes through untouched.</code></pre>
+
+<p>This is the architecture to reach for whenever the requirement is <em>"nothing in our infrastructure, including the ingress proxy, may ever see decrypted data outside the target workload."</em></p>
+
+<!-- SECTION 7 -->
+<h2><span class="num">07</span>Pattern A vs. Pattern B+C — the comparison table</h2>
+<div class="table-scroll">
+<table>
+<thead><tr><th>Concern</th><th>A: Gateway terminates</th><th>B+C: Sidecar terminates</th></tr></thead>
+<tbody>
+<tr><td>Private key location</td><td>Shared ingress Gateway</td><td>Isolated per workload, managed by istiod</td></tr>
+<tr><td>Blast radius if edge is compromised</td><td>Attacker sees decrypted traffic for <strong>every</strong> service behind it</td><td>Attacker sees <strong>nothing</strong> — traffic stays encrypted through the Gateway</td></tr>
+<tr><td>Cert rotation</td><td>Centralized, manual / your responsibility</td><td>Automatic, per-service, short-lived</td></tr>
+<tr><td>HTTP-layer routing at the edge</td><td>✅ Full (paths, headers)</td><td>❌ SNI-only</td></tr>
+<tr><td>Per-service custom TLS policy</td><td>Hard — one Gateway config for all</td><td>✅ Easy — each service gets its own PeerAuthentication</td></tr>
+<tr><td>Typical use case</td><td>Partner/B2B APIs, centralized cert mgmt</td><td>Regulatory/compliance-grade E2E encryption</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- SECTION 8 -->
+<h2><span class="num">08</span>Exam-style quick review</h2>
+<p>Use these as flash questions before a certification exam or an interview.</p>
+
+<div class="qa"><p class="q">Q1 — What does tls.mode: MUTUAL on a Gateway actually do?</p><p class="a">Makes the Gateway a real TLS server: it presents its own cert and requires/verifies a client certificate, decrypting the traffic at the edge.</p></div>
+
+<div class="qa"><p class="q">Q2 — What does tls.mode: PASSTHROUGH do, and what field does routing rely on?</p><p class="a">The Gateway never decrypts; it forwards raw bytes based solely on the SNI field read from the unencrypted ClientHello. Routing uses VirtualService.tls.match.sniHosts, not HTTP matches.</p></div>
+
+<div class="qa"><p class="q">Q3 — Which resource enforces what a sidecar accepts as a server, and which enforces what it sends as a client?</p><p class="a">PeerAuthentication = server-side acceptance policy (STRICT/PERMISSIVE/DISABLE). DestinationRule (tls.mode: ISTIO_MUTUAL) = client-side behavior when calling another service.</p></div>
+
+<div class="qa"><p class="q">Q4 — Why is PERMISSIVE mode useful during a migration?</p><p class="a">It lets a sidecar accept both plaintext and mTLS on the same port simultaneously, so you can migrate workloads to mTLS one at a time without breaking traffic from not-yet-migrated services.</p></div>
+
+<div class="qa"><p class="q">Q5 — In a fully end-to-end encrypted setup (passthrough + sidecar mTLS), does the Ingress Gateway ever see decrypted payload?</p><p class="a">No — it only reads the SNI from the handshake; the actual decryption happens exclusively at the destination sidecar.</p></div>
+
+<div class="qa"><p class="q">Q6 — What identity system underlies mesh mTLS, and who issues the certificates?</p><p class="a">SPIFFE identities (e.g. spiffe://cluster.local/ns/&lt;namespace&gt;/sa/&lt;service-account&gt;), issued as short-lived certs by istiod's built-in CA and delivered via SDS.</p></div>
+
+<!-- SECTION 9 -->
+<h2><span class="num">09</span>Mental model to carry forward</h2>
+<ul class="mm">
+<li><code>mode: MUTUAL</code> on a Gateway → "I <em>am</em> the TLS server. Verify me, I'll verify you."</li>
+<li><code>mode: PASSTHROUGH</code> on a Gateway → "I'm just a router. I never touch your bytes."</li>
+<li><code>PeerAuthentication: STRICT</code> → "My sidecar refuses anything that isn't mTLS."</li>
+<li><code>DestinationRule: ISTIO_MUTUAL</code> → "When I call someone, wrap it in Istio's mesh mTLS automatically."</li>
+</ul>
+
+<p>Every Istio security question — in an exam, in a design review, in an incident postmortem — boils down to tracing the request through these hops and asking: <strong>who holds the private key, and where does decryption actually happen?</strong></p>
+
+<hr class="div">
+
+</article>
+
+<footer>
+  <p><span class="clap">👏</span> If this helped, share it with a teammate prepping for the same exam. Follow-ups worth writing next: debugging PASSTHROUGH + SNI routing failures, and a hands-on PERMISSIVE-to-STRICT migration walkthrough.</p>
+</footer>
+
+</body>
+</html>
