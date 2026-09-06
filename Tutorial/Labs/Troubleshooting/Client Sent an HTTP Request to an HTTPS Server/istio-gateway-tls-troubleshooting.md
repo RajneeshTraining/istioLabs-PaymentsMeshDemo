@@ -100,11 +100,77 @@ curl (plain HTTP)
    -> booking-service :443          [pod expects TLS]      FAILS
 ```
 
-Now that the root cause is confirmed, here are three ways to fix it — starting with the one to reach for first.
+Now that the root cause is confirmed, here are three ways to fix it. All three are technically correct — which one is "best" actually depends on whether you're patching a live production issue or answering an ICA exam question, so read both recommendation sections below before picking one.
 
 ---
 
-## ✅ Best / fastest fix: `DestinationRule` with TLS origination
+## ✅ Recommended for the ICA exam: Gateway `TLS PASSTHROUGH`
+
+Here's the detail that should jump out immediately in an exam scenario: **`booking-service` exposes only port 443, nothing on 80.** That's the standard signal Istio's own documentation uses to teach `PASSTHROUGH` — a backend that already owns and terminates its own TLS certificate, with no plaintext port available at all. Traffic Management — which covers `Gateway`, `VirtualService`, and `DestinationRule` — is the single largest ICA domain at 40% of the exam, and Gateway TLS modes (`SIMPLE`, `MUTUAL`, `PASSTHROUGH`, `AUTO_PASSTHROUGH`) are a named part of that domain. This is the pattern the exam is most likely testing you on.
+
+**Gateway:**
+
+```yaml
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: booking-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: tls
+      protocol: TLS
+    tls:
+      mode: PASSTHROUGH
+    hosts:
+    - booking.example.com
+```
+
+**VirtualService** — this becomes a `tls:` block matched by SNI, not an `http:` block, since Envoy never decrypts the traffic to read HTTP headers or paths:
+
+```yaml
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: booking
+  namespace: default
+spec:
+  hosts: [booking.example.com]
+  gateways: [booking-gateway]
+  tls:
+  - match:
+    - port: 443
+      sniHosts: [booking.example.com]
+    route:
+    - destination:
+        host: booking-service
+        port:
+          number: 443
+```
+
+Client now connects over HTTPS on the 443 NodePort:
+
+```bash
+curl https://booking.example.com:30443/bookings \
+  --resolve booking.example.com:30443:<ingress-node-ip> -k
+```
+
+**Why this is the answer to reach for on the exam:**
+
+- The backend having **only** a 443 port with no plaintext option is the classic tell for "this workload already does its own TLS — don't terminate it at the gateway, pass it through."
+- It's directly testing named Gateway TLS-mode knowledge (`SIMPLE` vs `MUTUAL` vs `PASSTHROUGH` vs `AUTO_PASSTHROUGH`), which is explicitly called out in the highest-weighted domain.
+- It requires no assumption about a `DestinationRule` existing or being the "missing piece" — it fixes the problem using the two resources the question already gave you (`Gateway` + `VirtualService`), which is how ICA scenario questions are typically scoped.
+- It matches Istio's own documented reference pattern for exposing an HTTPS-terminating backend, so it's the answer least likely to be marked wrong for "missing the point" of the question.
+
+**Trade-off to know for the exam too:** you lose HTTP-layer (L7) routing at the gateway — no path/header matching, no HTTP-aware retries — since Envoy is forwarding encrypted bytes it can't inspect. If a question adds "...and the gateway must also route by URL path," PASSTHROUGH stops being viable and you're back to TLS origination.
+
+---
+
+## Production-pragmatic alternative: `DestinationRule` with TLS origination
 
 Since the `Gateway` and `VirtualService` are otherwise correctly configured, and the *only* missing piece is telling Envoy to encrypt traffic before it reaches a TLS-only backend, add a single new resource:
 
@@ -123,14 +189,16 @@ spec:
 
 `tls.mode: SIMPLE` tells the gateway's Envoy proxy to **originate TLS** to `booking-service:443` — wrapping the outbound request in TLS before it leaves the gateway, matching exactly what the pod expects.
 
-![Recommended fix flow with DestinationRule added](recommended-fix-flow.svg)
+![Production-pragmatic fix flow with DestinationRule added](recommended-fix-flow.svg)
 
-**Why this is the best first move:**
+**Why you'd reach for this in a real production incident:**
 
-- **Zero changes** to the existing `Gateway` or `VirtualService` — both were already correct.
+- **Zero changes** to the existing `Gateway` or `VirtualService` — both stay exactly as they are.
 - **No application/container changes** — the backend keeps doing exactly what it was doing.
 - **Keeps HTTP-layer (L7) routing** — path/header matching, retries, timeouts, etc. all keep working, since the gateway still parses the request as HTTP before originating TLS downstream.
-- **Smallest blast radius** — one new object, easy to roll back, easy to test in isolation.
+- **Smallest blast radius** — one new object, easy to roll back, easy to test in isolation, no client-facing URL scheme change (still plain `http://` from the caller's perspective).
+
+This is genuinely the better choice **operationally** — if you're on call and need the fastest, lowest-risk patch to a live system without touching client behavior or losing path-based routing, this is it. It's just less likely to be the *expected* answer on a scenario-based exam question that's clearly probing Gateway TLS-mode knowledge.
 
 Verify:
 
@@ -229,25 +297,32 @@ curl https://booking.example.com:30443/bookings \
 
 ![Comparison of the three fix approaches](three-options-comparison.svg)
 
-| | ✅ DestinationRule (SIMPLE) | Re-architect backend | Gateway PASSTHROUGH |
+| | Gateway PASSTHROUGH | DestinationRule (SIMPLE) | Re-architect backend |
 |---|---|---|---|
-| Resources touched | +1 (`DestinationRule`) | App + Service + VS | Gateway + VS (rewritten) |
-| App/container changes | None | Yes | None |
-| Keeps L7 (path/header) routing | Yes | Yes | **No** |
-| Client-facing change | None | None | Must use `https://` + SNI |
-| Best fit | Fast, low-risk fix when Gateway/VS are already correct | Long-term mesh-native redesign | End-to-end cert must never be decrypted at the edge |
+| Resources touched | Gateway + VS (rewritten) | +1 (`DestinationRule`) | App + Service + VS |
+| App/container changes | None | None | Yes |
+| Keeps L7 (path/header) routing | **No** | Yes | Yes |
+| Client-facing change | Must use `https://` + SNI | None | None |
+| Best fit | **Backend already fully owns its TLS cert, no plaintext port exists at all** | Fast, low-risk patch to a live system without touching Gateway/VS | Long-term mesh-native redesign |
 
 ---
 
-## Which one should you reach for on the exam?
+## Which one should you reach for — exam vs. production
 
-**Go with the `DestinationRule` + `tls.mode: SIMPLE` fix first**, and here's the exam logic for why:
+This is the one place where the "right" answer genuinely depends on context, so hold both of these in your head separately:
 
-- The scenario as given shows a `Gateway` and `VirtualService` that are **already valid** — the only gap is a missing traffic policy on the destination. The exam typically wants you to identify the *smallest correct change*, not redesign the topology.
-- Re-architecting the backend (Alternate 1) requires changing the application, which is out of scope for a networking/traffic-management question — Istio config questions expect Istio config answers.
-- Converting to `PASSTHROUGH` (Alternate 2) is a bigger structural change (new protocol, new route type, client behavior change) and **sacrifices HTTP-layer routing**, which is rarely something you want to trade away unless the question explicitly says the certificate must remain end-to-end.
+**On the ICA exam → `Gateway` `TLS PASSTHROUGH`.**
+The tell is `booking-service` exposing **only** port 443 with no plaintext alternative — that's the standard signal for "this backend already terminates its own TLS, don't decrypt it at the edge." Traffic Management is 40% of the exam and explicitly covers Gateway TLS modes, and PASSTHROUGH is the documented, named pattern for exactly this backend shape. Scenario-based questions tend to reward recognizing the *documented* pattern for the situation described, not inventing an extra resource (`DestinationRule`) that the question didn't hint at needing.
 
-**Rule of thumb for the exam:** when a request fails because of an HTTP/TLS protocol mismatch *between the mesh and a backend*, and the Gateway/VirtualService look otherwise correct, check whether a `DestinationRule.trafficPolicy.tls` is missing before you touch anything else. It's almost always the intended, minimal-diff answer.
+**In a live production incident → `DestinationRule` with `tls.mode: SIMPLE`.**
+If your actual goal is "stop the outage with the least risk right now," adding one `DestinationRule` and touching nothing else is safer: no client-facing URL/SNI change, no loss of path-based routing, and the smallest possible diff to review and roll back.
+
+**Rule of thumb:**
+- Question emphasizes *"the backend already has its own certificate / only exposes 443 / must not be decrypted at the gateway"* → **PASSTHROUGH**.
+- Question emphasizes *"the Gateway and VirtualService are correct, something in the traffic policy is missing"* or you need to preserve HTTP-layer routing → **DestinationRule TLS origination**.
+- Question emphasizes *"redesign for mesh-native mTLS"* or asks about sidecar-to-sidecar encryption → **plain HTTP backend + `ISTIO_MUTUAL`**.
+
+Reading which constraint the question is actually testing is the real skill here — not memorizing one "always correct" answer.
 
 ---
 
@@ -266,4 +341,4 @@ curl https://booking.example.com:30443/bookings \
 
 ## Closing thought
 
-*"Client sent an HTTP request to an HTTPS server"* can come from either end of the request path — a misconfigured `Gateway` listener, or a `VirtualService` forwarding plaintext to a TLS-only backend with no TLS origination configured. All three fixes above are technically correct; what separates a good answer from a great one — on the exam and in production — is picking the one with the smallest, safest footprint for the constraint you're actually given. Default to the `DestinationRule` fix unless the scenario explicitly calls for end-to-end encryption or a backend redesign.
+*"Client sent an HTTP request to an HTTPS server"* can come from either end of the request path — a misconfigured `Gateway` listener, or a `VirtualService` forwarding plaintext to a TLS-only backend with no TLS origination configured. All three fixes above are technically correct; what separates a good answer from a great one is reading the specific constraint the scenario hands you. A backend with **only** a 443 port and no plaintext alternative is Istio's textbook signal for `PASSTHROUGH` — know that pattern cold for the exam. Save the `DestinationRule` fix for when you need the smallest possible diff to a live system, and the full backend redesign for when you're actually rearchitecting the service to be mesh-native.
