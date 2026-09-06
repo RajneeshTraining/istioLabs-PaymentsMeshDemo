@@ -91,7 +91,7 @@ spec:
 
 Found it. The `VirtualService` forwards HTTP traffic to `booking-service` on **port 443 as plaintext** — `VirtualService.http` routes never encrypt traffic on their own. Since `booking-service` only exposes 443 and its pod is terminating TLS there, Envoy is handing it a raw HTTP request. The pod (correctly) rejects it with the exact error we saw.
 
-![Traffic flow diagram showing where the request breaks](images/traffic-flow.svg)
+![Traffic flow diagram showing where the request breaks](traffic-flow.svg)
 
 ```
 curl (plain HTTP)
@@ -123,7 +123,7 @@ spec:
 
 `tls.mode: SIMPLE` tells the gateway's Envoy proxy to **originate TLS** to `booking-service:443` — wrapping the outbound request in TLS before it leaves the gateway, matching exactly what the pod expects.
 
-![Recommended fix flow with DestinationRule added](images/recommended-fix-flow.svg)
+![Recommended fix flow with DestinationRule added](recommended-fix-flow.svg)
 
 **Why this is the best first move:**
 
@@ -227,7 +227,7 @@ curl https://booking.example.com:30443/bookings \
 
 ## Comparing all three
 
-![Comparison of the three fix approaches](images/three-options-comparison.svg)
+![Comparison of the three fix approaches](three-options-comparison.svg)
 
 | | ✅ DestinationRule (SIMPLE) | Re-architect backend | Gateway PASSTHROUGH |
 |---|---|---|---|
