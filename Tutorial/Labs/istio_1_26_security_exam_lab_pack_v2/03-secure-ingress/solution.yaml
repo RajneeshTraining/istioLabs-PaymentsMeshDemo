@@ -1,0 +1,88 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: secure-ingress
+  namespace: security-labs
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: api-example-tls
+    hosts: [api.example.test]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: payment-ingress
+  namespace: security-labs
+spec:
+  hosts: [api.example.test]
+  gateways: [secure-ingress]
+  http:
+  - match:
+    - uri:
+        prefix: /payment
+    route:
+    - destination:
+        host: payment.security-labs.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: namespace-strict
+  namespace: security-labs
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: payment-jwt
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels:
+      app: payment
+  jwtRules:
+  - issuer: https://issuer.example.test
+    audiences: [payment-api]
+    jwks: |
+      {"keys":[{"kty":"oct","kid":"lab-key","k":"aWNhLTEuMjYtanN0LXNlY3JldA","alg":"HS256","use":"sig"}]}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-authz
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels:
+      app: payment
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["https://issuer.example.test/*"]
+    to:
+    - operation:
+        paths: ["/payment"]
+        methods: ["GET"]
+  - from:
+    - source:
+        requestPrincipals: ["https://issuer.example.test/*"]
+    to:
+    - operation:
+        paths: ["/payment/admin"]
+        methods: ["GET"]
+    when:
+    - key: request.auth.claims[role]
+      values: ["admin"]

@@ -1,0 +1,50 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict
+  namespace: security-labs
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fraud-broken
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: fraud}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/security-labs/sa/caller-sa"]
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: payment-jwt-broken
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: payment}
+  jwtRules:
+  - issuer: https://wrong-issuer.example.test
+    audiences: [wrong-audience]
+    jwks: |
+      {"keys":[{"kty":"oct","kid":"lab-key","k":"aWNhLTEuMjYtanN0LXNlY3JldA","alg":"HS256","use":"sig"}]}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-broken
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: payment}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["https://wrong-issuer.example.test/*"]

@@ -1,0 +1,38 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: namespace-strict
+  namespace: security-labs
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-allow-caller
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels:
+      app: payment
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/security-labs/sa/caller-sa"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fraud-allow-payment
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels:
+      app: fraud
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/security-labs/sa/payment-sa"]

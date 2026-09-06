@@ -1,0 +1,64 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: strict
+  namespace: security-labs
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: fraud-fixed
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: fraud}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/security-labs/sa/payment-sa"]
+---
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: payment-jwt-fixed
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: payment}
+  jwtRules:
+  - issuer: https://issuer.example.test
+    audiences: [payment-api]
+    jwks: |
+      {"keys":[{"kty":"oct","kid":"lab-key","k":"aWNhLTEuMjYtanN0LXNlY3JldA","alg":"HS256","use":"sig"}]}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-fixed
+  namespace: security-labs
+spec:
+  selector:
+    matchLabels: {app: payment}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["https://issuer.example.test/*"]
+    to:
+    - operation:
+        paths: ["/payment"]
+        methods: ["GET"]
+  - from:
+    - source:
+        requestPrincipals: ["https://issuer.example.test/*"]
+    to:
+    - operation:
+        paths: ["/payment/admin"]
+        methods: ["GET"]
+    when:
+    - key: request.auth.claims[role]
+      values: ["admin"]
