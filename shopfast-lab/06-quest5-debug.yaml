@@ -1,0 +1,14 @@
+# Deliberately broken policy for diagnosis practice.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: broken-cart-policy
+  namespace: shop
+spec:
+  selector:
+    matchLabels: {app: cart}
+  action: DENY
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/shop/sa/frontend"]

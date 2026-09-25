@@ -1,0 +1,14 @@
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: stripe-api
+  namespace: shop
+spec:
+  hosts:
+  - api.stripe.com
+  ports:
+  - number: 443
+    name: https
+    protocol: TLS
+  resolution: DNS
+  location: MESH_EXTERNAL

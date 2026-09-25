@@ -1,0 +1,26 @@
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: orders-jwt
+  namespace: shop
+spec:
+  selector:
+    matchLabels: {app: orders}
+  jwtRules:
+  - issuer: "https://auth.shopfast.example.com"
+    jwksUri: "https://auth.shopfast.example.com/.well-known/jwks.json"
+    forwardOriginalToken: true
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: orders-require-jwt
+  namespace: shop
+spec:
+  selector:
+    matchLabels: {app: orders}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        requestPrincipals: ["https://auth.shopfast.example.com/*"]

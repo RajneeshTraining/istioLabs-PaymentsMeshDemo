@@ -1,0 +1,5 @@
+# Namespace WITHOUT sidecar injection. Used to simulate a plaintext client.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plain

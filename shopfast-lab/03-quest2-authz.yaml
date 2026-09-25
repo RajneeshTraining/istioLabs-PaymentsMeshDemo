@@ -1,0 +1,38 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: shop
+spec: {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-allow-cart
+  namespace: shop
+spec:
+  selector:
+    matchLabels: {app: payment}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/shop/sa/cart"]
+    to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/api/v1/charge"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: inventory-allow-orders
+  namespace: shop
+spec:
+  selector:
+    matchLabels: {app: inventory}
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/shop/sa/orders"]

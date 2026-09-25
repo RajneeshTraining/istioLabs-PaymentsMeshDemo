@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  namespace: shop
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: frontend}
+  template:
+    metadata:
+      labels: {app: frontend}
+    spec:
+      serviceAccountName: frontend
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=frontend ok"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: shop
+spec:
+  selector: {app: frontend}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cart
+  namespace: shop
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: cart}
+  template:
+    metadata:
+      labels: {app: cart}
+    spec:
+      serviceAccountName: cart
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=cart ok"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart
+  namespace: shop
+spec:
+  selector: {app: cart}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orders
+  namespace: shop
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: orders}
+  template:
+    metadata:
+      labels: {app: orders}
+    spec:
+      serviceAccountName: orders
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=orders ok"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+  namespace: shop
+spec:
+  selector: {app: orders}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment
+  namespace: shop
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payment}
+  template:
+    metadata:
+      labels: {app: payment}
+    spec:
+      serviceAccountName: payment
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=payment ok"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  namespace: shop
+spec:
+  selector: {app: payment}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: inventory
+  namespace: shop
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory
+  namespace: shop
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: inventory}
+  template:
+    metadata:
+      labels: {app: inventory}
+    spec:
+      serviceAccountName: inventory
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=inventory ok"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory
+  namespace: shop
+spec:
+  selector: {app: inventory}
+  ports: [{port: 8080, targetPort: 8080}]
