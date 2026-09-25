@@ -1,0 +1,21 @@
+# BREAKS: a well-meaning attempt to guarantee the sidecar plenty of CPU
+# heads (typo: 32 whole cores instead of 32 millicores) — far more than any
+# node in this cluster has available. The pod will never schedule.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: payment-v2, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: payment-v2}}
+  template:
+    metadata:
+      labels: {app: payment-v2}
+      annotations:
+        sidecar.istio.io/proxyCPU: "32"        # <-- meant "32m", not 32 cores
+        sidecar.istio.io/proxyMemory: "128Mi"
+    spec:
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=payment v2 ok"]
+        ports: [{name: http, containerPort: 8080}]

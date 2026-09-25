@@ -1,0 +1,16 @@
+# FIXES: caps how long the caller will wait for payment at 2 seconds.
+# Without this, a slow dependency can hang every request that touches it,
+# tying up client threads and cascading the slowness upstream.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: payment, namespace: shop}
+spec:
+  hosts: [payment]
+  http:
+  - fault:
+      delay:
+        percentage: {value: 100}
+        fixedDelay: 5s
+    timeout: 2s
+    route:
+    - destination: {host: payment}

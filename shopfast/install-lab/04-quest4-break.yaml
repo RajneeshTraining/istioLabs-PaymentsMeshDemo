@@ -1,0 +1,12 @@
+# BREAKS: routes to "checkout" — a host with no matching Kubernetes Service.
+# Kubernetes happily accepts this (VirtualService is just a CRD; the API
+# server does not know or care whether "checkout" exists). The mistake is
+# invisible until something actually sends traffic through this route.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: orders-route, namespace: shop}
+spec:
+  hosts: [orders]
+  http:
+  - route:
+    - destination: {host: checkout}

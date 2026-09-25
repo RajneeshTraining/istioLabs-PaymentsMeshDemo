@@ -1,0 +1,9 @@
+# FIXES: destination host corrected to the service that actually exists.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: orders-route, namespace: shop}
+spec:
+  hosts: [orders]
+  http:
+  - route:
+    - destination: {host: orders}

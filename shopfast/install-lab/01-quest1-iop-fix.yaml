@@ -1,0 +1,13 @@
+# FIXES: adds the ingress gateway component on top of the minimal profile,
+# rather than switching to a much heavier profile. This is the
+# production-realistic approach — enable exactly the components you need.
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: shopfast-with-ingress
+spec:
+  profile: minimal
+  components:
+    ingressGateways:
+    - name: istio-ingressgateway
+      enabled: true

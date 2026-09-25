@@ -1,0 +1,19 @@
+# FIXES: retries transient 5xx / connect failures up to 3 times, with a 2s
+# cap per attempt. With a 40% failure rate, the odds of all 3 attempts
+# failing drop to about 6% (0.4^3) instead of 40%.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: cart, namespace: shop}
+spec:
+  hosts: [cart]
+  http:
+  - fault:
+      abort:
+        percentage: {value: 40}
+        httpStatus: 503
+    route:
+    - destination: {host: cart}
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+      retryOn: 5xx,connect-failure

@@ -1,0 +1,18 @@
+# FIXES: mirrors 100% of live traffic to v2 as a shadow copy. Real users
+# still get their response from v1 only — v2's responses are discarded.
+# This lets the team watch v2 handle real production traffic patterns
+# (volume, payload shapes, timing) with zero user-facing risk.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: inventory, namespace: shop}
+spec:
+  hosts: [inventory]
+  http:
+  - route:
+    - destination: {host: inventory, subset: v1}
+      weight: 100
+    mirror:
+      host: inventory
+      subset: v2
+    mirrorPercentage:
+      value: 100.0

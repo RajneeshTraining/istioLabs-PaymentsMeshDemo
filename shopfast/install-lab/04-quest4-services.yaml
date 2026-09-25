@@ -1,0 +1,28 @@
+# Two real backend services. Deliberately named so a routing typo is easy
+# to make ("checkout" instead of "orders").
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: orders, namespace: shop}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: orders, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: orders}}
+  template:
+    metadata: {labels: {app: orders}}
+    spec:
+      serviceAccountName: orders
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=orders ok"]
+        ports: [{name: http, containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: orders, namespace: shop}
+spec:
+  selector: {app: orders}
+  ports: [{name: http, port: 8080, targetPort: 8080}]

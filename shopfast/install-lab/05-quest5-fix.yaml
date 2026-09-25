@@ -1,0 +1,19 @@
+# FIXES: realistic sidecar resource footprint. The pod can now be scheduled.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: payment-v2, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: payment-v2}}
+  template:
+    metadata:
+      labels: {app: payment-v2}
+      annotations:
+        sidecar.istio.io/proxyCPU: "100m"
+        sidecar.istio.io/proxyMemory: "128Mi"
+    spec:
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=payment v2 ok"]
+        ports: [{name: http, containerPort: 8080}]

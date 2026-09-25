@@ -1,0 +1,6 @@
+# A namespace created WITHOUT the injection label — the app is deployed
+# first, injection gets enabled later (a very common ordering in real teams).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shop

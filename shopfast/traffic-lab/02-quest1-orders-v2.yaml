@@ -1,0 +1,16 @@
+# A new version of orders, ready to roll out.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: orders-v2, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: orders, version: v2}}
+  template:
+    metadata: {labels: {app: orders, version: v2}}
+    spec:
+      serviceAccountName: orders
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=orders v2 ok"]
+        ports: [{name: http, containerPort: 8080}]

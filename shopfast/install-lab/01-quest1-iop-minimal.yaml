@@ -1,0 +1,10 @@
+# Installs Istio with the "minimal" profile — istiod only. No ingress
+# gateway, no egress gateway. A common first-install mistake: teams pick
+# "minimal" thinking it's the safe/lightweight default, then can't figure
+# out why nothing is reachable from outside the cluster.
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: shopfast-minimal
+spec:
+  profile: minimal

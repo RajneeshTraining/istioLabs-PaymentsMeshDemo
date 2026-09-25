@@ -1,0 +1,27 @@
+# BREAKS: the /orders/ path rule has a copy-paste bug — it routes to "cart"
+# instead of "orders". Anyone hitting /orders/ gets the cart service.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata: {name: shop-gateway, namespace: shop}
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port: {number: 80, name: http, protocol: HTTP}
+    hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: shop-routes, namespace: shop}
+spec:
+  hosts: ["*"]
+  gateways: [shop-gateway]
+  http:
+  - match:
+    - uri: {prefix: /cart}
+    route:
+    - destination: {host: cart, port: {number: 8080}}
+  - match:
+    - uri: {prefix: /orders}
+    route:
+    - destination: {host: cart, port: {number: 8080}}   # <-- bug: should be "orders"

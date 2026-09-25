@@ -1,0 +1,13 @@
+# Simulates a flaky cart backend: 40% of requests fail with 503.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: cart, namespace: shop}
+spec:
+  hosts: [cart]
+  http:
+  - fault:
+      abort:
+        percentage: {value: 40}
+        httpStatus: 503
+    route:
+    - destination: {host: cart}

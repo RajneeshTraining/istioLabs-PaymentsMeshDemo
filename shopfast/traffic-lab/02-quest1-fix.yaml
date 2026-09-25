@@ -1,0 +1,25 @@
+# FIXES: gives explicit, controllable weighted routing instead of relying on
+# whatever order Kubernetes happens to load-balance in. Start conservative:
+# 90% of traffic stays on the proven v1, only 10% reaches the new v2.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata: {name: orders, namespace: shop}
+spec:
+  host: orders
+  subsets:
+  - name: v1
+    labels: {version: v1}
+  - name: v2
+    labels: {version: v2}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: orders, namespace: shop}
+spec:
+  hosts: [orders]
+  http:
+  - route:
+    - destination: {host: orders, subset: v1}
+      weight: 90
+    - destination: {host: orders, subset: v2}
+      weight: 10
