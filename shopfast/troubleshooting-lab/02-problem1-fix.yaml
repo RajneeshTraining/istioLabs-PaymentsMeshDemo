@@ -1,0 +1,7 @@
+# FIXES inventory: selector matches the Deployment's "app: inventory" label again.
+apiVersion: v1
+kind: Service
+metadata: {name: inventory, namespace: shop}
+spec:
+  selector: {app: inventory}
+  ports: [{name: http, port: 8080, targetPort: 8080}]

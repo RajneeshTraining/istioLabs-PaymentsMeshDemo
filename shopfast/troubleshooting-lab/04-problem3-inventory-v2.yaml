@@ -1,0 +1,16 @@
+# A second version of inventory, used for canary routing.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: inventory-v2, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: inventory, version: v2}}
+  template:
+    metadata: {labels: {app: inventory, version: v2}}
+    spec:
+      serviceAccountName: inventory
+      containers:
+      - name: app
+        image: hashicorp/http-echo
+        args: ["-listen=:8080", "-text=inventory v2 ok"]
+        ports: [{name: http, containerPort: 8080}]

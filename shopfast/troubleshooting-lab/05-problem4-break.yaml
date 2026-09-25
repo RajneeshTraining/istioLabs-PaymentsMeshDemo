@@ -1,0 +1,4 @@
+# BREAKS resilience: no outlier detection exists yet, so Envoy keeps sending
+# traffic to the flaky pod at full rate. Every client absorbs the 500s.
+# (This file is a placeholder — the "break" IS the absence of a DestinationRule.
+#  Nothing to apply here; see the README validation step.)

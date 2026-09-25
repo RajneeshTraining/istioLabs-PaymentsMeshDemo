@@ -1,0 +1,14 @@
+# Simulates a flaky payment pod: 60% of requests get aborted with HTTP 500.
+# This represents "one bad pod behind the payment Service" in real life.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: payment, namespace: shop}
+spec:
+  hosts: [payment]
+  http:
+  - fault:
+      abort:
+        percentage: {value: 60}
+        httpStatus: 500
+    route:
+    - destination: {host: payment}

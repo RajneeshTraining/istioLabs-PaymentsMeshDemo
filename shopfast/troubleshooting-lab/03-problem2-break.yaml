@@ -1,0 +1,24 @@
+# BREAKS: a "legacy worker" pod deployed with sidecar injection explicitly
+# disabled. Under STRICT mTLS, it cannot present a certificate, so its calls
+# to any mesh service fail.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: legacy-worker, namespace: shop}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: legacy-worker, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: legacy-worker}}
+  template:
+    metadata:
+      labels: {app: legacy-worker}
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: legacy-worker
+      containers:
+      - name: app
+        image: curlimages/curl
+        command: ["sleep", "infinity"]

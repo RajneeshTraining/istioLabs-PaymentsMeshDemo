@@ -1,0 +1,8 @@
+# BREAKS inventory: the Service selector no longer matches the Deployment's
+# pod labels, so the Service has zero endpoints.
+apiVersion: v1
+kind: Service
+metadata: {name: inventory, namespace: shop}
+spec:
+  selector: {app: inventory-typo}
+  ports: [{name: http, port: 8080, targetPort: 8080}]

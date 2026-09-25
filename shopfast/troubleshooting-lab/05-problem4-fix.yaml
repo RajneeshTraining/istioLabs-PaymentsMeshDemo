@@ -1,0 +1,14 @@
+# FIXES: outlier detection ejects a host after 3 consecutive 5xx responses,
+# for 30 seconds, capping ejection at 50% of the pool so we never eject
+# every endpoint at once.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata: {name: payment, namespace: shop}
+spec:
+  host: payment
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50

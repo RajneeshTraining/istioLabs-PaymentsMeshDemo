@@ -1,0 +1,22 @@
+# BREAKS external access: the Gateway's selector ("istio: ingress") does not
+# match any workload label. The real ingress pods are labeled
+# "istio: ingressgateway", so this Gateway is never bound to a listener.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata: {name: frontend-gateway, namespace: shop}
+spec:
+  selector:
+    istio: ingress   # <-- typo, should be "ingressgateway"
+  servers:
+  - port: {number: 80, name: http, protocol: HTTP}
+    hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: frontend, namespace: shop}
+spec:
+  hosts: ["*"]
+  gateways: [frontend-gateway]
+  http:
+  - route:
+    - destination: {host: frontend, port: {number: 8080}}

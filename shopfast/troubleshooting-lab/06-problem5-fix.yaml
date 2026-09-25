@@ -1,0 +1,20 @@
+# FIXES: selector now matches the real ingress gateway pods.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata: {name: frontend-gateway, namespace: shop}
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port: {number: 80, name: http, protocol: HTTP}
+    hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: {name: frontend, namespace: shop}
+spec:
+  hosts: ["*"]
+  gateways: [frontend-gateway]
+  http:
+  - route:
+    - destination: {host: frontend, port: {number: 8080}}

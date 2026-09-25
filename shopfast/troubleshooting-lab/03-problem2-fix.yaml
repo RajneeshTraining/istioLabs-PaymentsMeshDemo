@@ -1,0 +1,21 @@
+# FIXES: removes the inject:false annotation so the pod gets a sidecar
+# and can present a valid mTLS certificate.
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: legacy-worker, namespace: shop}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: legacy-worker, namespace: shop}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: legacy-worker}}
+  template:
+    metadata:
+      labels: {app: legacy-worker}
+    spec:
+      serviceAccountName: legacy-worker
+      containers:
+      - name: app
+        image: curlimages/curl
+        command: ["sleep", "infinity"]
